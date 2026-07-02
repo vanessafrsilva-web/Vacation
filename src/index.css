@@ -1,0 +1,21 @@
+/* Reset basique pour mobile */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #1C1C1E; /* Le fond sombre iOS demandé */
+  color: #FFFFFF; /* Texte en blanc pour contraster */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; /* Police native iOS/Android */
+  -webkit-font-smoothing: antialiased;
+  width: 100vw;
+  height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
