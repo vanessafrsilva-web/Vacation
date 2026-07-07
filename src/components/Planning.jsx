@@ -57,6 +57,8 @@ export const Planning = ({ voyage, currentUserId }) => {
   const [detail, setDetail] = useState('');
   const [dateDepart, setDateDepart] = useState('');
   const [prix, setPrix] = useState('');
+  const [lat, setLat] = useState(null);
+  const [lon, setLon] = useState(null);
   const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de l'entrée modifiée
 
   // Recherche d'adresse (hôtel / resto / visite) via OpenStreetMap Nominatim —
@@ -93,6 +95,8 @@ export const Planning = ({ voyage, currentUserId }) => {
 
   const choisirSuggestion = (s) => {
     setLieu(s.display_name);
+    setLat(parseFloat(s.lat));
+    setLon(parseFloat(s.lon));
     setSuggestionsOuvertes(false);
     setSuggestionsLieu([]);
   };
@@ -116,6 +120,7 @@ export const Planning = ({ voyage, currentUserId }) => {
   const resetForm = () => {
     setTitre(''); setDate(''); setHeure(''); setLieu(''); setDepart(''); setArrivee('');
     setCategorie('visite'); setDetail(''); setDateDepart(''); setPrix('');
+    setLat(null); setLon(null);
     setIdEnEdition(null);
     setSuggestionsOuvertes(false); setSuggestionsLieu([]);
     setShowForm(false);
@@ -126,6 +131,7 @@ export const Planning = ({ voyage, currentUserId }) => {
     setDepart(act.depart || ''); setArrivee(act.arrivee || '');
     setCategorie(act.categorie); setDetail(act.detail || ''); setDateDepart(act.dateDepart || '');
     setPrix(act.prix ? String(act.prix) : '');
+    setLat(act.lat ?? null); setLon(act.lon ?? null);
     setIdEnEdition(act.id);
     setShowForm(true);
   };
@@ -177,7 +183,9 @@ export const Planning = ({ voyage, currentUserId }) => {
       arrivee: catActive?.departArrivee ? arrivee : null,
       detail: detail || null,
       dateDepart: (catActive?.dateDepart && dateDepart) ? dateDepart : null,
-      prix: prix ? parseFloat(prix) : null
+      prix: prix ? parseFloat(prix) : null,
+      lat: catActive?.departArrivee ? null : lat,
+      lon: catActive?.departArrivee ? null : lon
     };
 
     let idActivite = idEnEdition;
@@ -273,7 +281,7 @@ export const Planning = ({ voyage, currentUserId }) => {
               <input
                 placeholder={catActive?.rechercheAdresse ? 'Lieu (ex: Hôtel Balmoral, Édimbourg)' : 'Lieu'}
                 value={lieu}
-                onChange={(e) => { setLieu(e.target.value); setSuggestionsOuvertes(true); }}
+                onChange={(e) => { setLieu(e.target.value); setLat(null); setLon(null); setSuggestionsOuvertes(true); }}
                 onFocus={() => setSuggestionsOuvertes(true)}
                 style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }}
               />

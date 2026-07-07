@@ -4,6 +4,7 @@ import './App.css';
 import { BottomNav } from './components/BottomNav';
 import { Gestion } from './components/Gestion'; 
 import { Bilan } from './components/Bilan';
+import { Carte } from './components/Carte';
 import { Planning } from './components/Planning';
 import { Checklist } from './components/Checklist';
 import { Budget } from './components/Budget';
@@ -55,6 +56,22 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (u) => setUtilisateur(u));
     return () => unsubscribe();
   }, []);
+
+  // Sans ça, la page peut rester scrollée là où était le formulaire de
+  // connexion au moment où l'app authentifiée s'affiche derrière. On attend
+  // deux frames pour être sûr que le nouveau contenu est déjà affiché avant
+  // de forcer le retour en haut (sinon ça s'exécute trop tôt et ne sert à rien).
+  useEffect(() => {
+    if (utilisateur) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo(0, 0);
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+        });
+      });
+    }
+  }, [utilisateur]);
 
   // Voyageurs ajoutés dès la création du voyage (en plus de vous, Admin par défaut)
   const [voyageursACreer, setVoyageursACreer] = useState([]);
@@ -173,9 +190,11 @@ function App() {
     setDestinations(newDestinations);
   };
 
-  // Cherche une vraie photo (pas une armoirie, un drapeau ou une carte) sur Wikimedia
-  // Commons pour un lieu donné. Renvoie null si rien de convaincant n'est trouvé —
-  // dans ce cas la carte affichera un joli dégradé plutôt qu'une photo hors-sujet.
+  // Cherche une vraie photo pour un lieu donné. Priorité à Unsplash (bien plus
+  // fiable pour retrouver de vraies photos de villes/lieux), avec Wikimedia
+  // Commons en repli si Unsplash ne renvoie rien ou n'est pas configuré.
+  // Renvoie null si rien de convaincant n'est trouvé — la carte affichera alors
+  // un joli dégradé plutôt qu'une photo hors-sujet.
   const MOTS_EXCLUS = [
     'map', 'carte', 'plan', 'location', 'situation', 'coat of arms', 'armoiries',
     'blason', 'flag', 'drapeau', 'crest', 'logo', 'seal', 'emblem', 'emblème',
@@ -187,9 +206,29 @@ function App() {
     return MOTS_EXCLUS.some((mot) => t.includes(mot));
   };
 
-  const chercherPhotoDestination = async (lieu) => {
-    if (!lieu || !lieu.trim()) return null;
+  const chercherPhotoUnsplash = async (lieu) => {
+    const cleUnsplash = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
+    if (!cleUnsplash) return null;
 
+    try {
+      const res = await fetch(
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(lieu)}&per_page=3&orientation=landscape&content_filter=high`,
+        { headers: { Authorization: `Client-ID ${cleUnsplash}` } }
+      );
+      if (!res.ok) {
+        console.warn("Unsplash a renvoyé une erreur :", res.status);
+        return null;
+      }
+      const data = await res.json();
+      const resultat = data?.results?.[0];
+      return resultat?.urls?.regular || null;
+    } catch (error) {
+      console.warn("Recherche Unsplash impossible.", error);
+      return null;
+    }
+  };
+
+  const chercherPhotoWikimedia = async (lieu) => {
     try {
       const requete = `${lieu} landscape OR cityscape OR skyline OR scenery -flag -coatofarms -map -carte -logo -blason filetype:bitmap`;
       const rechercheRes = await fetch(
@@ -207,23 +246,29 @@ function App() {
       const pages = Object.values(infosData?.query?.pages || {})
         .filter((p) => !titreSuspect(p.title || ''));
 
-      // On préfère une vraie photo (jpeg) au format paysage, de taille correcte
-      // (les cartes/schémas générés sont souvent de petite taille ou très plats)
       const candidatIdeal = pages.find((p) => {
         const info = p.imageinfo?.[0];
         return info?.mime === 'image/jpeg' && info.width >= info.height && info.width >= 800;
       });
       if (candidatIdeal) return candidatIdeal.imageinfo[0].thumburl;
 
-      // Sinon, on accepte une vraie photo même en format portrait
       const candidatPhoto = pages.find((p) => p.imageinfo?.[0]?.mime === 'image/jpeg' && p.imageinfo[0].width >= 800);
       if (candidatPhoto) return candidatPhoto.imageinfo[0].thumburl;
 
       return null;
     } catch (error) {
-      console.warn("Recherche de photo impossible.", error);
+      console.warn("Recherche Wikimedia impossible.", error);
       return null;
     }
+  };
+
+  const chercherPhotoDestination = async (lieu) => {
+    if (!lieu || !lieu.trim()) return null;
+
+    const photoUnsplash = await chercherPhotoUnsplash(lieu);
+    if (photoUnsplash) return photoUnsplash;
+
+    return await chercherPhotoWikimedia(lieu);
   };
 
   const handleAddVoyage = async (e) => {
@@ -599,9 +644,24 @@ function App() {
 
                     <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                       <div>
-                        <span style={{ backgroundColor: '#FFFFFF', color: '#2B2420', padding: '6px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '800', display: 'inline-block', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                          {v.type === 'Travail' ? '💼 Pro' : '🌴 Loisirs'} • {v.nom}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ backgroundColor: '#FFFFFF', color: '#2B2420', padding: '6px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '800', display: 'inline-block', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                            {v.type === 'Travail' ? '💼 Pro' : '🌴 Loisirs'} • {v.nom}
+                          </span>
+                          {v.dateDebut && v.dateDebut > aujourdHui && (() => {
+                            const joursRestants = Math.round((new Date(v.dateDebut) - new Date(aujourdHui)) / 86400000);
+                            return (
+                              <span style={{ backgroundColor: '#B8863C', color: '#FFFFFF', padding: '6px 11px', borderRadius: '12px', fontSize: '12px', fontWeight: '800', display: 'inline-block', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                                J-{joursRestants}
+                              </span>
+                            );
+                          })()}
+                          {v.dateDebut && v.dateFin && v.dateDebut <= aujourdHui && v.dateFin >= aujourdHui && (
+                            <span style={{ backgroundColor: '#5E8A87', color: '#FFFFFF', padding: '6px 11px', borderRadius: '12px', fontSize: '12px', fontWeight: '800', display: 'inline-block', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                              En cours
+                            </span>
+                          )}
+                        </div>
                         {v.dateDebut && (
                           <div style={{ color: '#F7F1E8', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <IconCalendar size={16} color="#B8863C" /> 
@@ -665,8 +725,19 @@ function App() {
                       <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', letterSpacing: '0.5px', textTransform: 'uppercase', color: '#8A7B68' }}>{titre}</h4>
                       <span style={{ fontSize: '12px', fontWeight: '700', color: '#B5A793', backgroundColor: '#F1E8D8', padding: '1px 8px', borderRadius: '999px' }}>{liste.length}</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {liste.map(carte)}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {liste.map((v, i) => (
+                        <React.Fragment key={v.id}>
+                          {carte(v)}
+                          {i < liste.length - 1 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '26px' }}>
+                              <div style={{ width: '2px', height: '10px', background: 'repeating-linear-gradient(to bottom, #D9CDB8 0, #D9CDB8 3px, transparent 3px, transparent 6px)' }}></div>
+                              <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#B8863C', margin: '0 2px' }}></div>
+                              <div style={{ width: '2px', height: '10px', background: 'repeating-linear-gradient(to bottom, #D9CDB8 0, #D9CDB8 3px, transparent 3px, transparent 6px)' }}></div>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      ))}
                     </div>
                   </div>
                 );
@@ -706,6 +777,7 @@ function App() {
       case 'checklist': return <Checklist voyageId={voyageActuelObj.id} voyage={voyageActuelObj} />;
       case 'facturation': return <Budget voyage={voyageActuelObj} />;
       case 'bilan': return <Bilan voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
+      case 'carte': return <Carte voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       default: return <div>Écran introuvable</div>;
     }
   };

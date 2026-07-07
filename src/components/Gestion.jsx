@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import {
   IconCalendar, IconChecklist, IconReceipt2, IconUsers, IconArrowRight,
-  IconPlaneDeparture, IconCamera, IconX, IconTrophy
+  IconPlaneDeparture, IconCamera, IconX, IconTrophy, IconMap
 } from '@tabler/icons-react';
 
 // Même logique de dégradé de secours que sur la liste "Mes Voyages",
@@ -95,6 +95,10 @@ export function Gestion({ voyage, setActiveTab }) {
     {
       id: 'bilan', label: 'Bilan', icon: <IconTrophy size={22} />, color: '#B97490', bg: '#F8EFF2',
       sousTitre: 'Résumé & notes'
+    },
+    {
+      id: 'carte', label: 'Carte', icon: <IconMap size={22} />, color: '#5E8A87', bg: '#EEF3F2',
+      sousTitre: 'Vue d\'ensemble du trajet'
     }
   ];
 
