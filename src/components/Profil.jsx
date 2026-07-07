@@ -16,9 +16,12 @@ const messageErreurMdp = (code) => {
   }
 };
 
-export function Profil({ utilisateur, onClose }) {
+const AVATARS = ['🦊', '🐼', '🐨', '🦁', '🐯', '🐸', '🐢', '🦉', '🐝', '🦄', '🐙', '🦋', '🐧', '🦖', '🐺', '🦜'];
+
+export function Profil({ utilisateur, onClose, onMiseAJour }) {
   const [nom, setNom] = useState(utilisateur?.displayName || '');
   const [nomEnregistre, setNomEnregistre] = useState(false);
+  const [avatarActuel, setAvatarActuel] = useState(utilisateur?.photoURL || '');
 
   const [motDePasseActuel, setMotDePasseActuel] = useState('');
   const [nouveauMotDePasse, setNouveauMotDePasse] = useState('');
@@ -38,10 +41,22 @@ export function Profil({ utilisateur, onClose }) {
     if (!nom.trim()) return;
     try {
       await updateProfile(auth.currentUser, { displayName: nom.trim() });
+      onMiseAJour && onMiseAJour();
       setNomEnregistre(true);
       setTimeout(() => setNomEnregistre(false), 2500);
     } catch (error) {
       console.warn("Impossible de mettre à jour le nom.", error);
+    }
+  };
+
+  const choisirAvatar = async (emoji) => {
+    const nouvelAvatar = avatarActuel === emoji ? '' : emoji; // re-cliquer dessus l'enlève
+    setAvatarActuel(nouvelAvatar);
+    try {
+      await updateProfile(auth.currentUser, { photoURL: nouvelAvatar });
+      onMiseAJour && onMiseAJour();
+    } catch (error) {
+      console.warn("Impossible de mettre à jour l'avatar.", error);
     }
   };
 
@@ -97,6 +112,32 @@ export function Profil({ utilisateur, onClose }) {
           </div>
           {nomEnregistre && <p style={{ margin: '8px 0 0 0', fontSize: '12.5px', color: '#5E8A87', fontWeight: '600' }}>✅ Nom mis à jour</p>}
         </form>
+
+        {/* Avatar */}
+        <div style={{ marginBottom: '26px' }}>
+          <p style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: '700', color: '#2B2420' }}>
+            Avatar <span style={{ fontWeight: '400', color: '#8A7B68' }}>(pratique pour se repérer à plusieurs)</span>
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
+            {AVATARS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => choisirAvatar(emoji)}
+                style={{
+                  fontSize: '20px', padding: '8px 0', borderRadius: '12px', cursor: 'pointer',
+                  border: avatarActuel === emoji ? '2px solid #B8863C' : '2px solid transparent',
+                  backgroundColor: avatarActuel === emoji ? '#FBF3E3' : '#F7F1E8'
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          {!avatarActuel && (
+            <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#8A7B68' }}>Sans choix, tes initiales seront utilisées comme avant.</p>
+          )}
+        </div>
 
         {/* Mot de passe */}
         <form onSubmit={handleChangerMotDePasse}>

@@ -304,7 +304,7 @@ function App() {
     const imageAEnregistrer = await chercherPhotoDestination(lieuRecherche);
 
     const voyageursInitiaux = [
-      { id: utilisateur?.uid || 'admin', nom: monNom, email: utilisateur?.email || null, statut: 'ajouté', role: 'Admin' },
+      { id: utilisateur?.uid || 'admin', nom: monNom, email: utilisateur?.email || null, avatar: utilisateur?.photoURL || null, statut: 'ajouté', role: 'Admin' },
       ...voyageursACreer
     ];
 
@@ -545,8 +545,8 @@ function App() {
                 <label style={{ fontSize: '13px', color: '#475569', display: 'block', marginBottom: '8px', fontWeight: '600' }}>Voyageurs</label>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#FBF3E3', borderRadius: '12px', marginBottom: '10px' }}>
-                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#B8863C', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', flexShrink: 0 }}>
-                    {monNom.slice(0, 2).toUpperCase()}
+                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: utilisateur?.photoURL ? '#F1E8D8' : '#B8863C', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: utilisateur?.photoURL ? '16px' : '12px', fontWeight: '800', flexShrink: 0 }}>
+                    {utilisateur?.photoURL || monNom.slice(0, 2).toUpperCase()}
                   </div>
                   <span style={{ fontSize: '14px', fontWeight: '700', color: '#2B2420', flex: 1 }}>{monNom}</span>
                   <span style={{ fontSize: '11px', fontWeight: '800', color: '#B8863C', backgroundColor: '#F1E8D8', padding: '3px 9px', borderRadius: '999px' }}>ADMIN</span>
@@ -686,7 +686,7 @@ function App() {
                                   boxShadow: '0 2px 5px rgba(0,0,0,0.15)'
                                 }}
                               >
-                                {initiales(p.nom)}
+                                {p.avatar || initiales(p.nom)}
                               </div>
                             ))}
                             {(v.voyageurs || []).length > 3 && (
@@ -1027,7 +1027,7 @@ function App() {
                         boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
                       }}
                     >
-                      {initiales(p.nom)}
+                      {p.avatar || initiales(p.nom)}
                     </div>
                   ))}
                   {(voyageActuelObj.voyageurs || []).length > 4 && (
@@ -1065,7 +1065,7 @@ function App() {
 
       {/* Popup Profil (nom affiché + changement de mot de passe) */}
       {showProfil && utilisateur && (
-        <Profil utilisateur={utilisateur} onClose={() => setShowProfil(false)} />
+        <Profil utilisateur={utilisateur} onClose={() => setShowProfil(false)} onMiseAJour={() => setUtilisateur({ ...auth.currentUser })} />
       )}
 
       {/* Popup de gestion des voyageurs / collaborateurs — rendue via portail
@@ -1114,7 +1114,7 @@ function App() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: '12px', fontWeight: '800', flexShrink: 0
                     }}>
-                      {initiales(p.nom)}
+                      {p.avatar || initiales(p.nom)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '14px', fontWeight: '700', color: '#2B2420' }}>{p.nom}</div>

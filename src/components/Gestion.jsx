@@ -160,7 +160,7 @@ export function Gestion({ voyage, setActiveTab }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800',
                 border: '2px solid #FFFFFF', marginLeft: i === 0 ? 0 : '-8px'
               }}>
-                {initiales(p.nom)}
+                {p.avatar || initiales(p.nom)}
               </div>
             ))}
           </div>

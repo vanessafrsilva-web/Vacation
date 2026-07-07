@@ -154,6 +154,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   // Voyageurs du voyage, pour pouvoir assigner une tâche à quelqu'un précis
   const voyageurs = voyage?.voyageurs || [];
   const nomAssigne = (id) => voyageurs.find((v) => v.id === id)?.nom || null;
+  const avatarAssigne = (id) => voyageurs.find((v) => v.id === id)?.avatar || null;
 
   useEffect(() => {
     if (!voyageId) return;
@@ -1066,7 +1067,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
                         )}
                         {tache.assigneA && nomAssigne(tache.assigneA) && (
                           <span style={styles.badge('#6E8AA6', '#EEF2F0')}>
-                            👤 {nomAssigne(tache.assigneA)}
+                            {avatarAssigne(tache.assigneA) || '👤'} {nomAssigne(tache.assigneA)}
                           </span>
                         )}
                       </div>
