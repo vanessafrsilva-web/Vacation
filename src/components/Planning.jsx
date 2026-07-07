@@ -6,6 +6,7 @@ import {
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil
 } from '@tabler/icons-react';
+import { Carte } from './Carte';
 
 // Chaque catégorie définit son icône/couleur ET, si besoin, un champ de
 // détail spécifique (label + placeholder) affiché uniquement pour elle.
@@ -67,29 +68,38 @@ export const Planning = ({ voyage, currentUserId }) => {
   const [suggestionsLieu, setSuggestionsLieu] = useState([]);
   const [rechercheEnCours, setRechercheEnCours] = useState(false);
   const [suggestionsOuvertes, setSuggestionsOuvertes] = useState(false);
+  const [rechercheTerminee, setRechercheTerminee] = useState(false); // pour distinguer "pas encore cherché" de "0 résultat"
+  const [erreurRecherche, setErreurRecherche] = useState(false);
 
   const catActive = CATEGORIES.find((c) => c.id === categorie);
 
   useEffect(() => {
     if (!suggestionsOuvertes || !catActive?.rechercheAdresse || lieu.trim().length < 3) {
       setSuggestionsLieu([]);
+      setRechercheTerminee(false);
+      setErreurRecherche(false);
       return;
     }
     const minuteur = setTimeout(async () => {
       setRechercheEnCours(true);
+      setErreurRecherche(false);
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(lieu)}&addressdetails=1&limit=5`
         );
+        if (!res.ok) throw new Error(`Statut ${res.status}`);
         const data = await res.json();
         setSuggestionsLieu(data);
+        setRechercheTerminee(true);
       } catch (error) {
         console.warn("Recherche d'adresse impossible.", error);
         setSuggestionsLieu([]);
+        setRechercheTerminee(true);
+        setErreurRecherche(true);
       } finally {
         setRechercheEnCours(false);
       }
-    }, 450);
+    }, 600);
     return () => clearTimeout(minuteur);
   }, [lieu, suggestionsOuvertes, catActive?.rechercheAdresse]);
 
@@ -302,6 +312,13 @@ export const Planning = ({ voyage, currentUserId }) => {
                   ))}
                 </div>
               )}
+              {suggestionsOuvertes && !rechercheEnCours && rechercheTerminee && suggestionsLieu.length === 0 && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '12px', boxShadow: '0 8px 24px rgba(43,36,32,0.1)', zIndex: 50, padding: '12px', fontSize: '12.5px', color: erreurRecherche ? '#B3453A' : '#8A7B68' }}>
+                  {erreurRecherche
+                    ? "La recherche a échoué (réseau ou service temporairement indisponible). Tu peux réessayer, ou taper l'adresse complète toi-même."
+                    : "Aucun résultat trouvé pour ce nom — essaie d'être plus précis (ex: ajoute la ville), ou tape l'adresse complète toi-même."}
+                </div>
+              )}
             </div>
           )}
 
@@ -356,7 +373,9 @@ export const Planning = ({ voyage, currentUserId }) => {
                       <IconClock size={12} />
                       {act.heure}
                       {cat?.departArrivee
-                        ? (act.depart || act.arrivee) && ` • ${act.depart || '?'} → ${act.arrivee || '?'}`
+                        ? ((act.depart || act.arrivee)
+                          ? ` • ${act.depart || '?'} → ${act.arrivee || '?'}`
+                          : (act.lieu ? ` • ${act.lieu}` : ''))
                         : (act.lieu ? ` • ${act.lieu}` : '')}
                       {act.prix != null && (
                         <span style={{ fontWeight: '700', color: '#B8863C' }}>· {act.prix.toFixed(2)} CHF</span>
@@ -396,6 +415,13 @@ export const Planning = ({ voyage, currentUserId }) => {
           </div>
         </div>
       ))}
+
+      {/* Vue d'ensemble du trajet — intégrée ici plutôt que dans un onglet séparé */}
+      {activites.length > 0 && (
+        <div style={{ marginTop: '10px' }}>
+          <Carte voyage={voyage} integree />
+        </div>
+      )}
     </div>
   );
 };

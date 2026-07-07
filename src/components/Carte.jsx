@@ -13,7 +13,7 @@ const EMOJI_CATEGORIE = {
   hotel: '🛏️', resto: '☕', visite: '📍', taxi: '🚕', transport: '🚗', vol: '✈️'
 };
 
-export function Carte({ voyage, setActiveTab }) {
+export function Carte({ voyage, setActiveTab, integree = false }) {
   const conteneurRef = useRef(null);
   const carteRef = useRef(null);
   const [activites, setActivites] = useState([]);
@@ -92,16 +92,23 @@ export function Carte({ voyage, setActiveTab }) {
   if (!voyage) return null;
 
   return (
-    <div style={{ padding: '15px', fontFamily: 'inherit' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-        <button
-          onClick={() => setActiveTab && setActiveTab('gestion')}
-          style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', borderRadius: '12px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-        >
-          <IconArrowLeft size={18} color="#2B2420" />
-        </button>
-        <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Carte du voyage</h2>
-      </div>
+    <div style={{ padding: integree ? '0' : '15px', fontFamily: 'inherit' }}>
+      {!integree && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <button
+            onClick={() => setActiveTab && setActiveTab('gestion')}
+            style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', borderRadius: '12px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+          >
+            <IconArrowLeft size={18} color="#2B2420" />
+          </button>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Carte du voyage</h2>
+        </div>
+      )}
+      {integree && (
+        <h3 style={{ margin: '10px 0 14px 0', fontSize: '18px', fontWeight: '700', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>
+          🗺️ Vue d'ensemble du trajet
+        </h3>
+      )}
 
       {!chargement && points.length === 0 && (
         <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF' }}>

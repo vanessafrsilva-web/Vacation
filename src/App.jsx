@@ -4,7 +4,6 @@ import './App.css';
 import { BottomNav } from './components/BottomNav';
 import { Gestion } from './components/Gestion'; 
 import { Bilan } from './components/Bilan';
-import { Carte } from './components/Carte';
 import { Planning } from './components/Planning';
 import { Checklist } from './components/Checklist';
 import { Budget } from './components/Budget';
@@ -777,7 +776,6 @@ function App() {
       case 'checklist': return <Checklist voyageId={voyageActuelObj.id} voyage={voyageActuelObj} />;
       case 'facturation': return <Budget voyage={voyageActuelObj} />;
       case 'bilan': return <Bilan voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
-      case 'carte': return <Carte voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       default: return <div>Écran introuvable</div>;
     }
   };
