@@ -1,22 +1,36 @@
 {
-  "name": "Mon Road Trip",
-  "short_name": "Voyage",
+  "name": "Nomade by Vanessa",
+  "short_name": "Nomade",
+  "description": "Carnet de route interactif pour planifier vos voyages",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#1C1C1E",
+  "background_color": "#F7F1E8",
+  "theme_color": "#F7F1E8",
   "orientation": "portrait",
   "icons": [
     {
       "src": "/icon.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
