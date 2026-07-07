@@ -62,9 +62,15 @@ export const Planning = ({ voyage, currentUserId }) => {
   const [lon, setLon] = useState(null);
   const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de l'entrée modifiée
 
-  // Recherche d'adresse (hôtel / resto / visite) via OpenStreetMap Nominatim —
-  // gratuit, sans clé ni carte bancaire. Moins riche que Google Places mais
-  // suffisant pour retrouver une adresse à partir d'un nom de lieu.
+  // Jeton de session Google Places (New) — regroupe une recherche + sa
+  // sélection finale pour que ce soit facturé/compté comme une seule session
+  // (l'autocomplete devient gratuit si la session se termine par un choix).
+  const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID());
+
+  // Recherche d'adresse (hôtel / resto / visite). Priorité à Google Places
+  // (New) — bien plus fiable pour retrouver un établissement précis par son
+  // nom — avec repli automatique sur OpenStreetMap Nominatim si la clé
+  // n'est pas configurée ou si Google échoue.
   const [suggestionsLieu, setSuggestionsLieu] = useState([]);
   const [rechercheEnCours, setRechercheEnCours] = useState(false);
   const [suggestionsOuvertes, setSuggestionsOuvertes] = useState(false);
@@ -72,6 +78,39 @@ export const Planning = ({ voyage, currentUserId }) => {
   const [erreurRecherche, setErreurRecherche] = useState(false);
 
   const catActive = CATEGORIES.find((c) => c.id === categorie);
+  const cleGooglePlaces = import.meta.env.VITE_GOOGLE_PLACES_API_KEY;
+
+  const rechercherGooglePlaces = async (texte) => {
+    const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': cleGooglePlaces },
+      body: JSON.stringify({ input: texte, sessionToken })
+    });
+    if (!res.ok) throw new Error(`Statut ${res.status}`);
+    const data = await res.json();
+    return (data.suggestions || [])
+      .filter((s) => s.placePrediction)
+      .map((s) => ({
+        source: 'google',
+        placeId: s.placePrediction.placeId,
+        texte: s.placePrediction.text?.text || ''
+      }));
+  };
+
+  const rechercherNominatim = async (texte) => {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(texte)}&addressdetails=1&limit=5`
+    );
+    if (!res.ok) throw new Error(`Statut ${res.status}`);
+    const data = await res.json();
+    return data.map((s) => ({
+      source: 'nominatim',
+      placeId: s.place_id,
+      texte: s.display_name,
+      lat: parseFloat(s.lat),
+      lon: parseFloat(s.lon)
+    }));
+  };
 
   useEffect(() => {
     if (!suggestionsOuvertes || !catActive?.rechercheAdresse || lieu.trim().length < 3) {
@@ -84,31 +123,64 @@ export const Planning = ({ voyage, currentUserId }) => {
       setRechercheEnCours(true);
       setErreurRecherche(false);
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(lieu)}&addressdetails=1&limit=5`
-        );
-        if (!res.ok) throw new Error(`Statut ${res.status}`);
-        const data = await res.json();
-        setSuggestionsLieu(data);
+        const resultats = cleGooglePlaces
+          ? await rechercherGooglePlaces(lieu)
+          : await rechercherNominatim(lieu);
+        setSuggestionsLieu(resultats);
         setRechercheTerminee(true);
       } catch (error) {
-        console.warn("Recherche d'adresse impossible.", error);
-        setSuggestionsLieu([]);
+        console.warn("Recherche d'adresse impossible, tentative de repli.", error);
+        // Si Google a échoué (clé mal restreinte, quota, réseau...), on
+        // retente une dernière fois avec Nominatim avant d'abandonner.
+        try {
+          const resultats = cleGooglePlaces ? await rechercherNominatim(lieu) : [];
+          setSuggestionsLieu(resultats);
+        } catch {
+          setSuggestionsLieu([]);
+          setErreurRecherche(true);
+        }
         setRechercheTerminee(true);
-        setErreurRecherche(true);
       } finally {
         setRechercheEnCours(false);
       }
-    }, 600);
+    }, 500);
     return () => clearTimeout(minuteur);
   }, [lieu, suggestionsOuvertes, catActive?.rechercheAdresse]);
 
-  const choisirSuggestion = (s) => {
-    setLieu(s.display_name);
-    setLat(parseFloat(s.lat));
-    setLon(parseFloat(s.lon));
+  const choisirSuggestion = async (s) => {
     setSuggestionsOuvertes(false);
     setSuggestionsLieu([]);
+
+    if (s.source === 'nominatim') {
+      setLieu(s.texte);
+      setLat(s.lat);
+      setLon(s.lon);
+      return;
+    }
+
+    // Google : il faut un second appel (Place Details) pour obtenir les
+    // coordonnées GPS — c'est aussi ce qui termine la session (facturation).
+    setLieu(s.texte);
+    try {
+      const res = await fetch(`https://places.googleapis.com/v1/places/${s.placeId}`, {
+        headers: {
+          'X-Goog-Api-Key': cleGooglePlaces,
+          'X-Goog-FieldMask': 'formattedAddress,location'
+        }
+      });
+      if (!res.ok) throw new Error(`Statut ${res.status}`);
+      const data = await res.json();
+      if (data.formattedAddress) setLieu(data.formattedAddress);
+      if (data.location) {
+        setLat(data.location.latitude);
+        setLon(data.location.longitude);
+      }
+    } catch (error) {
+      console.warn("Impossible de récupérer les détails du lieu.", error);
+    } finally {
+      // Nouvelle session pour la prochaine recherche
+      setSessionToken(crypto.randomUUID());
+    }
   };
 
   useEffect(() => {
@@ -302,12 +374,12 @@ export const Planning = ({ voyage, currentUserId }) => {
                 <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '12px', boxShadow: '0 8px 24px rgba(43,36,32,0.1)', zIndex: 50, overflow: 'hidden' }}>
                   {suggestionsLieu.map((s) => (
                     <div
-                      key={s.place_id}
+                      key={s.placeId}
                       onClick={() => choisirSuggestion(s)}
                       style={{ padding: '10px 12px', fontSize: '13px', color: '#2B2420', cursor: 'pointer', borderBottom: '1px solid #F1E8D8', display: 'flex', alignItems: 'flex-start', gap: '8px' }}
                     >
                       <IconMapPin size={14} color="#B5A793" style={{ flexShrink: 0, marginTop: '2px' }} />
-                      <span>{s.display_name}</span>
+                      <span>{s.texte}</span>
                     </div>
                   ))}
                 </div>
