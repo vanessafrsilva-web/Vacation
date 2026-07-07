@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IconArrowsExchange, IconCurrencyPound, IconCoin } from '@tabler/icons-react';
+import { IconArrowsExchange, IconCurrencyPound } from '@tabler/icons-react';
 
 export function Convertisseur() {
   const [montant, setMontant] = useState('');
@@ -17,20 +17,20 @@ export function Convertisseur() {
   };
 
   return (
-    <div style={{ backgroundColor: '#1C1C1E', padding: '20px', borderRadius: '20px', marginBottom: '25px', border: '1px solid #2C2C2E', boxShadow: '0 8px 20px rgba(0,0,0,0.3)' }}>
+    <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '20px', marginBottom: '25px', border: '1px solid #E8DFCF', boxShadow: '0 8px 20px rgba(43, 36, 32, 0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-        <h3 style={{ margin: 0, color: '#FFF', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <IconArrowsExchange size={20} color="#0A84FF" /> Convertisseur rapide
+        <h3 style={{ margin: 0, color: '#2B2420', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800' }}>
+          <IconArrowsExchange size={20} color="#6E8AA6" /> Convertisseur rapide
         </h3>
         {/* Petit champ pour ajuster le taux de change si besoin */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <span style={{ fontSize: '12px', color: '#AEAEB2' }}>Taux:</span>
+          <span style={{ fontSize: '12px', color: '#8A7B68' }}>Taux:</span>
           <input 
             type="number" 
             step="0.01" 
             value={taux} 
             onChange={e => setTaux(e.target.value)} 
-            style={{ width: '60px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #3A3A3C', backgroundColor: '#2C2C2E', color: '#FFF', fontSize: '12px', outline: 'none' }}
+            style={{ width: '60px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #E8DFCF', backgroundColor: '#F7F1E8', color: '#2B2420', fontSize: '12px', outline: 'none', fontFamily: 'inherit' }}
           />
         </div>
       </div>
@@ -39,7 +39,7 @@ export function Convertisseur() {
         
         {/* Champ de saisie */}
         <div style={{ flex: 1, position: 'relative' }}>
-          <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#AEAEB2' }}>
+          <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#B5A793' }}>
             {sens === 'GBP_TO_CHF' ? <IconCurrencyPound size={20} /> : <span style={{fontWeight:'bold', fontSize:'14px'}}>CHF</span>}
           </div>
           <input 
@@ -47,14 +47,14 @@ export function Convertisseur() {
             placeholder="Montant..." 
             value={montant} 
             onChange={e => setMontant(e.target.value)} 
-            style={{ width: '100%', padding: '15px 15px 15px 40px', borderRadius: '12px', border: 'none', backgroundColor: '#2C2C2E', color: '#FFF', fontSize: '18px', outline: 'none', fontWeight: 'bold' }}
+            style={{ width: '100%', padding: '15px 15px 15px 40px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#F7F1E8', color: '#2B2420', fontSize: '18px', outline: 'none', fontWeight: 'bold', boxSizing: 'border-box', fontFamily: 'inherit' }}
           />
         </div>
 
         {/* Bouton d'inversion */}
         <button 
           onClick={toggleSens}
-          style={{ backgroundColor: '#3A3A3C', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FFF', cursor: 'pointer', flexShrink: 0, transition: 'transform 0.2s' }}
+          style={{ backgroundColor: '#F1E8D8', border: '1px solid #E8DFCF', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#2B2420', cursor: 'pointer', flexShrink: 0, transition: 'transform 0.2s' }}
           onMouseOver={e => e.currentTarget.style.transform = 'rotate(180deg)'}
           onMouseOut={e => e.currentTarget.style.transform = 'rotate(0deg)'}
         >
@@ -62,11 +62,11 @@ export function Convertisseur() {
         </button>
 
         {/* Résultat */}
-        <div style={{ flex: 1, padding: '15px', borderRadius: '12px', backgroundColor: 'rgba(10, 132, 255, 0.1)', border: '1px dashed rgba(10, 132, 255, 0.3)', textAlign: 'right' }}>
-          <span style={{ display: 'block', fontSize: '12px', color: '#0A84FF', marginBottom: '2px', fontWeight: 'bold' }}>
+        <div style={{ flex: 1, padding: '15px', borderRadius: '12px', backgroundColor: 'rgba(110, 138, 166, 0.08)', border: '1px dashed rgba(110, 138, 166, 0.3)', textAlign: 'right' }}>
+          <span style={{ display: 'block', fontSize: '12px', color: '#6E8AA6', marginBottom: '2px', fontWeight: 'bold' }}>
             {sens === 'GBP_TO_CHF' ? 'En Francs (CHF)' : 'En Livres (£)'}
           </span>
-          <span style={{ color: '#FFF', fontSize: '20px', fontWeight: '800' }}>
+          <span style={{ color: '#2B2420', fontSize: '20px', fontWeight: '800' }}>
             {resultat()}
           </span>
         </div>

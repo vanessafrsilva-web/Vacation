@@ -1,149 +1,199 @@
 import React, { useState, useEffect } from 'react';
-// On importe des nouvelles icônes (IconCamera pour les visites, IconCoffee pour les restos)
-import { IconPlane, IconBed, IconCar, IconTrash, IconEdit, IconCamera, IconCoffee } from '@tabler/icons-react';
 import { db } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import {
+  IconCalendar, IconChecklist, IconReceipt2, IconUsers, IconArrowRight,
+  IconPlaneDeparture, IconCamera, IconX, IconTrophy
+} from '@tabler/icons-react';
 
-// 1. LE MOULE RÉUTILISABLE
-function GestionSection({ titre, icone, dbCollection, placeholder1, placeholder2, placeholder3, defaultOpen = false, voyageId }) {
-  const [items, setItems] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState(null);
+// Même logique de dégradé de secours que sur la liste "Mes Voyages",
+// pour rester cohérent visuellement si le voyage n'a pas de photo.
+const PALETTES_SECOURS = [
+  ['#F59E0B', '#B3453A'], ['#6E8AA6', '#9A6B87'], ['#B8863C', '#5E8A87'],
+  ['#B97490', '#F59E0B'], ['#6366F1', '#06B6D4'], ['#14B8A6', '#6366F1']
+];
+const degradeSecours = (nom) => {
+  let h = 0;
+  for (let i = 0; i < (nom || '').length; i++) { h = nom.charCodeAt(i) + ((h << 5) - h); h |= 0; }
+  const [c1, c2] = PALETTES_SECOURS[Math.abs(h) % PALETTES_SECOURS.length];
+  return `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+};
 
-  const [val1, setVal1] = useState('');
-  const [val2, setVal2] = useState('');
-  const [val3, setVal3] = useState('');
+const initiales = (nom) => {
+  if (!nom) return '?';
+  const mots = nom.trim().split(/\s+/).filter(Boolean);
+  if (mots.length === 1) return mots[0].slice(0, 2).toUpperCase();
+  return (mots[0][0] + mots[1][0]).toUpperCase();
+};
 
-  // LECTURE
+export function Gestion({ voyage, setActiveTab }) {
+  const [nbActivites, setNbActivites] = useState(0);
+  const [checklistStats, setChecklistStats] = useState({ fait: 0, total: 0 });
+  const [totalDepenses, setTotalDepenses] = useState(0);
+  const [editionPhoto, setEditionPhoto] = useState(false);
+  const [urlPhoto, setUrlPhoto] = useState('');
+
   useEffect(() => {
-    if (!voyageId) return;
-    const q = query(collection(db, dbCollection), where('voyageId', '==', voyageId));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = [];
-      snapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() }));
-      setItems(data);
+    if (!voyage?.id) return;
+
+    const unsubActivites = onSnapshot(collection(db, `voyages/${voyage.id}/activites`), (snap) => {
+      setNbActivites(snap.size);
     });
-    return () => unsubscribe();
-  }, [dbCollection, voyageId]);
 
-  // SAUVEGARDE
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!val1) return;
+    const qChecklist = query(collection(db, 'checklist'), where('voyageId', '==', voyage.id));
+    const unsubChecklist = onSnapshot(qChecklist, (snap) => {
+      let fait = 0;
+      snap.forEach((d) => { if (d.data().fait) fait++; });
+      setChecklistStats({ fait, total: snap.size });
+    });
 
+    const qBudget = query(collection(db, 'budget'), where('voyageId', '==', voyage.id));
+    const unsubBudget = onSnapshot(qBudget, (snap) => {
+      let total = 0;
+      snap.forEach((d) => { if (!d.data().estRemboursement) total += d.data().montant || 0; });
+      setTotalDepenses(total);
+    });
+
+    return () => { unsubActivites(); unsubChecklist(); unsubBudget(); };
+  }, [voyage?.id]);
+
+  if (!voyage) return null;
+
+  const enregistrerPhoto = async () => {
+    if (!urlPhoto.trim()) return;
     try {
-      if (editId) {
-        await updateDoc(doc(db, dbCollection, editId), { val1, val2, val3 });
-      } else {
-        await addDoc(collection(db, dbCollection), { val1, val2, val3, voyageId });
-      }
-      resetForm();
+      await updateDoc(doc(db, 'voyages', voyage.id), { imageBg: urlPhoto.trim() });
+      setEditionPhoto(false);
+      setUrlPhoto('');
     } catch (error) {
-      console.error("Erreur de sauvegarde : ", error);
+      console.warn("Impossible de mettre à jour la photo.", error);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm(`Voulez-vous vraiment supprimer cet élément ?`)) {
-      await deleteDoc(doc(db, dbCollection, id));
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-CH', { day: 'numeric', month: 'short' }) : '';
+
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  let statutVoyage = 'à venir';
+  if (voyage.dateDebut && voyage.dateFin) {
+    if (aujourdHui > voyage.dateFin) statutVoyage = 'terminé';
+    else if (aujourdHui >= voyage.dateDebut) statutVoyage = 'en cours';
+  }
+
+  const modules = [
+    {
+      id: 'planning', label: 'Planning', icon: <IconCalendar size={22} />, color: '#6E8AA6', bg: '#EEF2F0',
+      sousTitre: nbActivites > 0 ? `${nbActivites} élément${nbActivites > 1 ? 's' : ''}` : 'Rien de prévu'
+    },
+    {
+      id: 'checklist', label: 'Checklist', icon: <IconChecklist size={22} />, color: '#B8863C', bg: '#F1E8D8',
+      sousTitre: checklistStats.total > 0 ? `${checklistStats.fait}/${checklistStats.total} fait${checklistStats.fait > 1 ? 's' : ''}` : 'Vide'
+    },
+    {
+      id: 'facturation', label: 'Budget', icon: <IconReceipt2 size={22} />, color: '#F59E0B', bg: '#FBF3E3',
+      sousTitre: `${totalDepenses.toFixed(0)} CHF`
+    },
+    {
+      id: 'bilan', label: 'Bilan', icon: <IconTrophy size={22} />, color: '#B97490', bg: '#F8EFF2',
+      sousTitre: 'Résumé & notes'
     }
-  };
-
-  const startEdit = (item) => {
-    setEditId(item.id);
-    setVal1(item.val1 || ''); setVal2(item.val2 || ''); setVal3(item.val3 || '');
-    setShowForm(true);
-  };
-
-  const resetForm = () => {
-    setVal1(''); setVal2(''); setVal3(''); setEditId(null); setShowForm(false);
-  };
-
-  const sectionStyle = { backgroundColor: '#2C2C2E', borderRadius: '12px', padding: '15px', marginBottom: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' };
-  const summaryStyle = { display: 'flex', alignItems: 'center', fontWeight: '700', fontSize: '18px', cursor: 'pointer', listStyle: 'none', color: '#FFF' };
-  const inputStyle = { width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '10px', border: '1px solid #3A3A3C', backgroundColor: '#1C1C1E', color: '#FFF', outline: 'none' };
+  ];
 
   return (
-    <details style={sectionStyle} open={defaultOpen}>
-      <summary style={summaryStyle}>
-        <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', marginRight: '12px' }}>
-          {icone}
+    <div style={{ padding: '15px 15px 30px 15px', fontFamily: 'inherit' }}>
+
+      {/* Bannière du voyage */}
+      <div style={{
+        position: 'relative', height: '180px', borderRadius: '24px', overflow: 'hidden',
+        marginBottom: '20px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
+        ...(voyage.imageBg
+          ? { backgroundImage: `url('${voyage.imageBg}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { background: degradeSecours(voyage.nom) })
+      }}>
+        {!voyage.imageBg && (
+          <IconPlaneDeparture size={90} color="rgba(255,255,255,0.18)" style={{ position: 'absolute', top: '15px', right: '10px', transform: 'rotate(25deg)' }} />
+        )}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(43, 36, 32, 0.85) 0%, rgba(43, 36, 32, 0.15) 55%, transparent 100%)' }}></div>
+
+        <button
+          onClick={() => setEditionPhoto(true)}
+          style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'rgba(43,36,32,0.45)', backdropFilter: 'blur(4px)', border: 'none', color: '#FFFFFF', width: '34px', height: '34px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+          title="Changer la photo"
+        >
+          <IconCamera size={16} />
+        </button>
+
+        <div style={{ position: 'absolute', bottom: '16px', left: '18px', right: '18px' }}>
+          <span style={{ backgroundColor: '#FFFFFF', color: '#2B2420', padding: '5px 11px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', display: 'inline-block', marginBottom: '8px' }}>
+            {statutVoyage === 'en cours' ? '🟢 En cours' : statutVoyage === 'terminé' ? '✔️ Terminé' : '🗓️ À venir'}
+          </span>
+          <h2 style={{ margin: 0, color: '#FFFFFF', fontSize: '24px', fontWeight: '700', fontFamily: "'Playfair Display', Georgia, serif" }}>{voyage.nom}</h2>
+          {voyage.dateDebut && (
+            <p style={{ margin: '4px 0 0 0', color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: '600' }}>
+              {formatDate(voyage.dateDebut)} → {formatDate(voyage.dateFin)}
+            </p>
+          )}
         </div>
-        {titre}
-      </summary>
-      
-      <div style={{ marginTop: '15px' }}>
-        {items.map(item => (
-          <div key={item.id} style={{ padding: '15px', backgroundColor: '#3A3A3C', borderRadius: '10px', marginBottom: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <h4 style={{ margin: '0 0 5px 0', color: '#FFF', fontSize: '16px' }}>{item.val1}</h4>
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <IconEdit size={20} color="#0A84FF" style={{ cursor: 'pointer' }} onClick={() => startEdit(item)} />
-                <IconTrash size={20} color="#FF453A" style={{ cursor: 'pointer' }} onClick={() => handleDelete(item.id)} />
+      </div>
+
+      {editionPhoto && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <input
+            type="url"
+            placeholder="Coller le lien d'une photo (ex: depuis Unsplash, Google Images...)"
+            value={urlPhoto}
+            onChange={(e) => setUrlPhoto(e.target.value)}
+            style={{ flex: 1, padding: '11px 12px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '13px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+          <button onClick={enregistrerPhoto} style={{ border: 'none', backgroundColor: '#B8863C', color: '#FFF', borderRadius: '12px', padding: '0 16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}>OK</button>
+          <button onClick={() => { setEditionPhoto(false); setUrlPhoto(''); }} style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', borderRadius: '12px', width: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconX size={16} /></button>
+        </div>
+      )}
+
+      {/* Voyageurs */}
+      {voyage.voyageurs && voyage.voyageurs.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', padding: '12px 16px', backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E8DFCF' }}>
+          <IconUsers size={18} color="#8A7B68" />
+          <div style={{ display: 'flex' }}>
+            {voyage.voyageurs.slice(0, 5).map((p, i) => (
+              <div key={p.id} title={p.nom} style={{
+                width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#2B2420', color: '#FFF',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '800',
+                border: '2px solid #FFFFFF', marginLeft: i === 0 ? 0 : '-8px'
+              }}>
+                {initiales(p.nom)}
               </div>
+            ))}
+          </div>
+          <span style={{ fontSize: '13px', color: '#8A7B68', fontWeight: '600' }}>
+            {voyage.voyageurs.length} voyageur{voyage.voyageurs.length > 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Accès rapide aux modules */}
+      <p style={{ fontSize: '13px', color: '#8A7B68', fontWeight: '700', margin: '0 0 10px 4px' }}>ACCÈS RAPIDE</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {modules.map((m) => (
+          <div
+            key={m.id}
+            onClick={() => setActiveTab && setActiveTab(m.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px',
+              backgroundColor: '#FFFFFF', borderRadius: '18px', border: '1px solid #E8DFCF',
+              cursor: 'pointer', boxShadow: '0 4px 12px rgba(43, 36, 32, 0.03)'
+            }}
+          >
+            <div style={{ backgroundColor: m.bg, color: m.color, padding: '10px', borderRadius: '13px', display: 'flex' }}>
+              {m.icon}
             </div>
-            <p style={{ margin: 0, fontSize: '14px', color: '#AEAEB2' }}>{item.val2 || '--'} • {item.val3 || '--'}</p>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: '#2B2420' }}>{m.label}</div>
+              <div style={{ fontSize: '12px', color: '#8A7B68' }}>{m.sousTitre}</div>
+            </div>
+            <IconArrowRight size={18} color="#D9CDB8" />
           </div>
         ))}
-
-        {showForm ? (
-          <form onSubmit={handleSave} style={{ marginTop: '15px', padding: '15px', backgroundColor: '#1C1C1E', borderRadius: '10px', border: '1px solid #3A3A3C' }}>
-            <input type="text" placeholder={placeholder1} value={val1} onChange={e => setVal1(e.target.value)} style={inputStyle} required />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <input type="text" placeholder={placeholder2} value={val2} onChange={e => setVal2(e.target.value)} style={inputStyle} />
-              <input type="text" placeholder={placeholder3} value={val3} onChange={e => setVal3(e.target.value)} style={inputStyle} />
-            </div>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-              <button type="button" onClick={resetForm} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#2C2C2E', color: '#AEAEB2', cursor: 'pointer', fontWeight: 'bold' }}>Annuler</button>
-              <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: editId ? '#30D158' : '#0A84FF', color: '#FFF', fontWeight: 'bold', cursor: 'pointer' }}>{editId ? "Modifier" : "Ajouter"}</button>
-            </div>
-          </form>
-        ) : (
-          <button onClick={() => setShowForm(true)} style={{ marginTop: '10px', width: '100%', padding: '12px', backgroundColor: 'rgba(10, 132, 255, 0.1)', color: '#0A84FF', border: '1px dashed rgba(10, 132, 255, 0.3)', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s' }}>
-            + Ajouter {titre.toLowerCase()}
-          </button>
-        )}
       </div>
-    </details>
-  );
-}
-
-// 2. L'ÉCRAN PRINCIPAL
-export function Gestion({ voyageId }) {
-  return (
-    <div style={{ padding: '5px', textAlign: 'left' }}>
-      
-      {/* Les classiques (Logistique) */}
-      <GestionSection titre="Hôtels & Logements" icone={<IconBed color="#0A84FF" />} dbCollection="hotels" placeholder1="Nom (ex: B&B Highlands)" placeholder2="Check-in" placeholder3="Check-out" voyageId={voyageId} />
-      <GestionSection titre="Vols & Transports" icone={<IconPlane color="#FF9F0A" />} dbCollection="vols" placeholder1="Transport (ex: Vol EasyJet)" placeholder2="Départ" placeholder3="Arrivée" voyageId={voyageId} />
-      <GestionSection titre="Véhicules" icone={<IconCar color="#30D158" />} dbCollection="vehicules" placeholder1="Modèle (ex: Fiat 500)" placeholder2="Prise en charge" placeholder3="Retour" voyageId={voyageId} />
-      
-      {/* NOUVEAU : Les points d'intérêt (Découverte) */}
-      <div style={{ marginTop: '30px', marginBottom: '15px' }}>
-        <h3 style={{ color: '#AEAEB2', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', marginLeft: '5px' }}>À découvrir</h3>
-      </div>
-
-      <GestionSection 
-        titre="Lieux à visiter" 
-        icone={<IconCamera color="#FF375F" />} 
-        dbCollection="lieux" 
-        placeholder1="Lieu (ex: Château d'Édimbourg)" 
-        placeholder2="Prix estimé" 
-        placeholder3="Horaires ou remarques" 
-        defaultOpen={true}
-        voyageId={voyageId} 
-      />
-
-      <GestionSection 
-        titre="Restos & Cafés" 
-        icone={<IconCoffee color="#BF5AF2" />} 
-        dbCollection="restos" 
-        placeholder1="Nom (ex: The Old Forge Pub)" 
-        placeholder2="Type (Pub, Pizzeria, Café...)" 
-        placeholder3="Réservation requise ?" 
-        voyageId={voyageId} 
-      />
-
     </div>
   );
 }
