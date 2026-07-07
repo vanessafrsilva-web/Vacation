@@ -879,7 +879,7 @@ function App() {
               transform: 'rotate(-2deg)'
             }}
           >
-            by Vanessa
+            by Vanessa Silva
           </p>
 
           {/* Tagline */}

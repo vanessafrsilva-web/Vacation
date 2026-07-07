@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { collection, query, where, getDocs, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
-  IconInfoCircle, IconCalendarDue, IconPencil
+  IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 
@@ -66,6 +67,12 @@ export const Planning = ({ voyage, currentUserId }) => {
   // sélection finale pour que ce soit facturé/compté comme une seule session
   // (l'autocomplete devient gratuit si la session se termine par un choix).
   const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID());
+
+  // Document joint (PDF, image de billet/réservation...) stocké sur Firebase Storage
+  const [documentUrl, setDocumentUrl] = useState('');
+  const [documentNom, setDocumentNom] = useState('');
+  const [uploadEnCours, setUploadEnCours] = useState(false);
+  const [erreurUpload, setErreurUpload] = useState('');
 
   // Recherche d'adresse (hôtel / resto / visite). Priorité à Google Places
   // (New) — bien plus fiable pour retrouver un établissement précis par son
@@ -203,6 +210,7 @@ export const Planning = ({ voyage, currentUserId }) => {
     setTitre(''); setDate(''); setHeure(''); setLieu(''); setDepart(''); setArrivee('');
     setCategorie('visite'); setDetail(''); setDateDepart(''); setPrix('');
     setLat(null); setLon(null);
+    setDocumentUrl(''); setDocumentNom(''); setErreurUpload('');
     setIdEnEdition(null);
     setSuggestionsOuvertes(false); setSuggestionsLieu([]);
     setShowForm(false);
@@ -214,8 +222,42 @@ export const Planning = ({ voyage, currentUserId }) => {
     setCategorie(act.categorie); setDetail(act.detail || ''); setDateDepart(act.dateDepart || '');
     setPrix(act.prix ? String(act.prix) : '');
     setLat(act.lat ?? null); setLon(act.lon ?? null);
+    setDocumentUrl(act.documentUrl || ''); setDocumentNom(act.documentNom || '');
     setIdEnEdition(act.id);
     setShowForm(true);
+  };
+
+  // Envoie un PDF/image (billet, réservation, visa...) sur Firebase Storage
+  // et enregistre son lien de téléchargement sur l'activité.
+  const handleUploadDocument = async (e) => {
+    const fichier = e.target.files?.[0];
+    if (!fichier) return;
+
+    if (fichier.size > 10 * 1024 * 1024) {
+      setErreurUpload('Fichier trop lourd (max 10 Mo).');
+      return;
+    }
+
+    setUploadEnCours(true);
+    setErreurUpload('');
+    try {
+      const chemin = `voyages/${voyage.id}/documents/${Date.now()}_${fichier.name}`;
+      const storageRef = ref(storage, chemin);
+      await uploadBytes(storageRef, fichier);
+      const url = await getDownloadURL(storageRef);
+      setDocumentUrl(url);
+      setDocumentNom(fichier.name);
+    } catch (error) {
+      console.warn("Échec de l'envoi du document.", error);
+      setErreurUpload("Échec de l'envoi. Réessaie, ou vérifie que Firebase Storage est bien activé.");
+    } finally {
+      setUploadEnCours(false);
+    }
+  };
+
+  const retirerDocument = () => {
+    setDocumentUrl('');
+    setDocumentNom('');
   };
 
   // Crée, met à jour ou supprime la dépense Budget liée à cette activité,
@@ -267,7 +309,9 @@ export const Planning = ({ voyage, currentUserId }) => {
       dateDepart: (catActive?.dateDepart && dateDepart) ? dateDepart : null,
       prix: prix ? parseFloat(prix) : null,
       lat: catActive?.departArrivee ? null : lat,
-      lon: catActive?.departArrivee ? null : lon
+      lon: catActive?.departArrivee ? null : lon,
+      documentUrl: documentUrl || null,
+      documentNom: documentNom || null
     };
 
     let idActivite = idEnEdition;
@@ -282,13 +326,21 @@ export const Planning = ({ voyage, currentUserId }) => {
     resetForm();
   };
 
-  const handleDeleteActivite = async (id, titreActivite) => {
-    if (window.confirm(`Supprimer « ${titreActivite} » du planning ?`)) {
-      await deleteDoc(doc(db, `voyages/${voyage.id}/activites`, id));
+  const handleDeleteActivite = async (act) => {
+    if (window.confirm(`Supprimer « ${act.titre} » du planning ?`)) {
+      await deleteDoc(doc(db, `voyages/${voyage.id}/activites`, act.id));
       // Retire aussi la dépense Budget liée, si elle existe
-      const q = query(collection(db, 'budget'), where('voyageId', '==', voyage.id), where('activiteId', '==', id));
+      const q = query(collection(db, 'budget'), where('voyageId', '==', voyage.id), where('activiteId', '==', act.id));
       const snapshot = await getDocs(q);
       snapshot.forEach((d) => deleteDoc(doc(db, 'budget', d.id)));
+      // Retire aussi le document Storage lié, si il existe
+      if (act.documentUrl) {
+        try {
+          await deleteObject(ref(storage, act.documentUrl));
+        } catch (error) {
+          console.warn("Impossible de supprimer le document associé.", error);
+        }
+      }
     }
   };
 
@@ -407,6 +459,26 @@ export const Planning = ({ voyage, currentUserId }) => {
             <input type="number" step="0.01" placeholder="ex: 700" value={prix} onChange={(e) => setPrix(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }} />
           </div>
 
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ fontSize: '11px', color: '#B5A793', display: 'block', marginBottom: '3px' }}>Document joint (optionnel — billet, réservation, visa...)</label>
+            {documentNom ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#F7F1E8', borderRadius: '12px' }}>
+                <IconFileText size={18} color="#6E8AA6" style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: '13px', color: '#2B2420', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{documentNom}</span>
+                <button type="button" onClick={retirerDocument} style={{ border: 'none', background: 'none', color: '#B3453A', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+                  <IconX size={16} />
+                </button>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '12px', border: '1.5px dashed #E8DFCF', color: '#8A7B68', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                <IconPaperclip size={16} />
+                {uploadEnCours ? 'Envoi en cours...' : 'Joindre un PDF ou une image'}
+                <input type="file" accept="application/pdf,image/*" onChange={handleUploadDocument} style={{ display: 'none' }} disabled={uploadEnCours} />
+              </label>
+            )}
+            {erreurUpload && <p style={{ margin: '6px 0 0 0', fontSize: '11.5px', color: '#B3453A' }}>{erreurUpload}</p>}
+          </div>
+
           <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#2B2420', color: '#FFF', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>
             {idEnEdition ? 'Enregistrer les modifications' : 'Enregistrer'}
           </button>
@@ -438,7 +510,7 @@ export const Planning = ({ voyage, currentUserId }) => {
                       <span style={{ fontWeight: '700', color: '#2B2420', fontSize: '15px' }}>{act.titre}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <button onClick={() => commencerEdition(act)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconPencil size={15} /></button>
-                        <button onClick={() => handleDeleteActivite(act.id, act.titre)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconTrash size={16} /></button>
+                        <button onClick={() => handleDeleteActivite(act)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconTrash size={16} /></button>
                       </div>
                     </div>
                     <div style={{ fontSize: '12px', color: '#8A7B68', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
@@ -462,6 +534,16 @@ export const Planning = ({ voyage, currentUserId }) => {
                       <div style={{ fontSize: '12px', color: cat?.color, marginTop: '6px', display: 'flex', alignItems: 'flex-start', gap: '4px', backgroundColor: cat?.bg, padding: '6px 10px', borderRadius: '8px' }}>
                         <IconInfoCircle size={13} style={{ flexShrink: 0, marginTop: '1px' }} /> {act.detail}
                       </div>
+                    )}
+                    {act.documentUrl && (
+                      <a
+                        href={act.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '12px', color: '#6E8AA6', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '5px', textDecoration: 'none', fontWeight: '700' }}
+                      >
+                        <IconFileText size={13} /> {act.documentNom || 'Voir le document'}
+                      </a>
                     )}
 
                     {cat?.notable && (
