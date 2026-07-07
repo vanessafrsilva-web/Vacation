@@ -46,19 +46,48 @@ const MODELES = {
     label: 'Plage',
     taches: [
       { nom: 'Passeport / carte d\'identité', categorie: 'documents', priorite: 'urgent' },
-      { nom: 'Maillot de bain', categorie: 'vetements', priorite: 'normal' },
-      { nom: 'Crème solaire', categorie: 'sante', priorite: 'normal' },
       { nom: 'Billets d\'avion', categorie: 'transport', priorite: 'urgent' },
-      { nom: 'Réservation hôtel', categorie: 'logement', priorite: 'urgent' }
+      { nom: 'Réservation hôtel', categorie: 'logement', priorite: 'urgent' },
+      { nom: 'Assurance voyage', categorie: 'documents', priorite: 'normal' },
+      { nom: 'Maillots de bain (x2)', categorie: 'vetements', priorite: 'urgent' },
+      { nom: 'Lunettes de soleil', categorie: 'vetements', priorite: 'normal' },
+      { nom: 'Chapeau / casquette', categorie: 'vetements', priorite: 'normal' },
+      { nom: 'Sandales / tongs', categorie: 'vetements', priorite: 'normal' },
+      { nom: 'Paréo / kimono de plage', categorie: 'vetements', priorite: 'optionnel' },
+      { nom: 'Crème solaire haute protection', categorie: 'sante', priorite: 'urgent' },
+      { nom: 'After-sun', categorie: 'sante', priorite: 'normal' },
+      { nom: 'Répulsif anti-moustiques', categorie: 'sante', priorite: 'normal' },
+      { nom: 'Trousse de premiers secours', categorie: 'sante', priorite: 'normal' },
+      { nom: 'Serviette de plage', categorie: 'logement', priorite: 'normal' },
+      { nom: 'Sac étanche pour téléphone', categorie: 'autre', priorite: 'optionnel' },
+      { nom: 'Masque et tuba (snorkeling)', categorie: 'autre', priorite: 'optionnel' },
+      { nom: 'Adaptateur de prise', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Batterie externe (powerbank)', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Livre / liseuse', categorie: 'autre', priorite: 'optionnel' }
     ]
   },
   montagne: {
     label: 'Montagne / randonnée',
     taches: [
+      { nom: 'Passeport / carte d\'identité', categorie: 'documents', priorite: 'urgent' },
+      { nom: 'Assurance voyage / rapatriement', categorie: 'documents', priorite: 'urgent' },
+      { nom: 'Carte de randonnée / GPS', categorie: 'documents', priorite: 'normal' },
       { nom: 'Chaussures de randonnée', categorie: 'vetements', priorite: 'urgent' },
-      { nom: 'Trousse de premiers secours', categorie: 'sante', priorite: 'normal' },
-      { nom: 'Carte / GPS', categorie: 'documents', priorite: 'normal' },
-      { nom: 'Vêtements chauds', categorie: 'vetements', priorite: 'urgent' }
+      { nom: 'Vêtements techniques (couches)', categorie: 'vetements', priorite: 'urgent' },
+      { nom: 'Veste imperméable / coupe-vent', categorie: 'vetements', priorite: 'urgent' },
+      { nom: 'Bonnet et gants', categorie: 'vetements', priorite: 'normal' },
+      { nom: 'Lunettes de soleil catégorie 3-4', categorie: 'vetements', priorite: 'normal' },
+      { nom: 'Chaussettes de randonnée (rechange)', categorie: 'vetements', priorite: 'normal' },
+      { nom: 'Crème solaire haute protection', categorie: 'sante', priorite: 'urgent' },
+      { nom: 'Trousse de premiers secours', categorie: 'sante', priorite: 'urgent' },
+      { nom: 'Comprimés contre le mal des montagnes', categorie: 'sante', priorite: 'optionnel' },
+      { nom: 'Couverture de survie', categorie: 'sante', priorite: 'optionnel' },
+      { nom: 'Sac à dos de randonnée', categorie: 'autre', priorite: 'urgent' },
+      { nom: 'Bâtons de marche', categorie: 'autre', priorite: 'optionnel' },
+      { nom: 'Gourde / poche à eau', categorie: 'autre', priorite: 'urgent' },
+      { nom: 'Barres énergétiques', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Lampe frontale', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Sifflet de sécurité', categorie: 'autre', priorite: 'optionnel' }
     ]
   },
   citytrip: {
@@ -66,9 +95,20 @@ const MODELES = {
     taches: [
       { nom: 'Passeport / carte d\'identité', categorie: 'documents', priorite: 'urgent' },
       { nom: 'Visa (si nécessaire)', categorie: 'documents', priorite: 'urgent' },
+      { nom: 'Assurance voyage', categorie: 'documents', priorite: 'normal' },
+      { nom: 'Carte de crédit + un peu de liquide local', categorie: 'documents', priorite: 'urgent' },
+      { nom: 'Plan de la ville / pass transports', categorie: 'documents', priorite: 'normal' },
       { nom: 'Réservation hôtel', categorie: 'logement', priorite: 'urgent' },
       { nom: 'Billets de transport', categorie: 'transport', priorite: 'urgent' },
-      { nom: 'Adaptateur de prise', categorie: 'autre', priorite: 'normal' }
+      { nom: 'Tenues confortables pour marcher', categorie: 'vetements', priorite: 'urgent' },
+      { nom: 'Chaussures de marche', categorie: 'vetements', priorite: 'urgent' },
+      { nom: 'Une tenue habillée (resto/soirée)', categorie: 'vetements', priorite: 'optionnel' },
+      { nom: 'Trousse de toilette', categorie: 'sante', priorite: 'normal' },
+      { nom: 'Médicaments habituels', categorie: 'sante', priorite: 'normal' },
+      { nom: 'Adaptateur de prise', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Batterie externe (powerbank)', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Petit sac à dos / banane', categorie: 'autre', priorite: 'normal' },
+      { nom: 'Guide de voyage / appli hors-ligne', categorie: 'autre', priorite: 'optionnel' }
     ]
   },
   vanlife: {

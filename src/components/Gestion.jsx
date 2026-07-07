@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
   IconCalendar, IconChecklist, IconReceipt2, IconUsers, IconArrowRight,
-  IconPlaneDeparture, IconCamera, IconX, IconTrophy, IconMap
+  IconPlaneDeparture, IconTrophy, IconToolsKitchen2
 } from '@tabler/icons-react';
 
 // Même logique de dégradé de secours que sur la liste "Mes Voyages",
@@ -30,8 +30,6 @@ export function Gestion({ voyage, setActiveTab }) {
   const [nbActivites, setNbActivites] = useState(0);
   const [checklistStats, setChecklistStats] = useState({ fait: 0, total: 0 });
   const [totalDepenses, setTotalDepenses] = useState(0);
-  const [editionPhoto, setEditionPhoto] = useState(false);
-  const [urlPhoto, setUrlPhoto] = useState('');
 
   useEffect(() => {
     if (!voyage?.id) return;
@@ -59,17 +57,6 @@ export function Gestion({ voyage, setActiveTab }) {
 
   if (!voyage) return null;
 
-  const enregistrerPhoto = async () => {
-    if (!urlPhoto.trim()) return;
-    try {
-      await updateDoc(doc(db, 'voyages', voyage.id), { imageBg: urlPhoto.trim() });
-      setEditionPhoto(false);
-      setUrlPhoto('');
-    } catch (error) {
-      console.warn("Impossible de mettre à jour la photo.", error);
-    }
-  };
-
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-CH', { day: 'numeric', month: 'short' }) : '';
 
   const aujourdHui = new Date().toISOString().slice(0, 10);
@@ -95,6 +82,10 @@ export function Gestion({ voyage, setActiveTab }) {
     {
       id: 'bilan', label: 'Bilan', icon: <IconTrophy size={22} />, color: '#B97490', bg: '#F8EFF2',
       sousTitre: 'Résumé & notes'
+    },
+    {
+      id: 'repas', label: 'Menus & repas', icon: <IconToolsKitchen2 size={22} />, color: '#10B981', bg: '#ECFDF5',
+      sousTitre: 'Qui cuisine quoi'
     }
   ];
 
@@ -114,14 +105,6 @@ export function Gestion({ voyage, setActiveTab }) {
         )}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(43, 36, 32, 0.85) 0%, rgba(43, 36, 32, 0.15) 55%, transparent 100%)' }}></div>
 
-        <button
-          onClick={() => setEditionPhoto(true)}
-          style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'rgba(43,36,32,0.45)', backdropFilter: 'blur(4px)', border: 'none', color: '#FFFFFF', width: '34px', height: '34px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          title="Changer la photo"
-        >
-          <IconCamera size={16} />
-        </button>
-
         <div style={{ position: 'absolute', bottom: '16px', left: '18px', right: '18px' }}>
           <span style={{ backgroundColor: '#FFFFFF', color: '#2B2420', padding: '5px 11px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', display: 'inline-block', marginBottom: '8px' }}>
             {statutVoyage === 'en cours' ? '🟢 En cours' : statutVoyage === 'terminé' ? '✔️ Terminé' : '🗓️ À venir'}
@@ -135,19 +118,6 @@ export function Gestion({ voyage, setActiveTab }) {
         </div>
       </div>
 
-      {editionPhoto && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-          <input
-            type="url"
-            placeholder="Coller le lien d'une photo (ex: depuis Unsplash, Google Images...)"
-            value={urlPhoto}
-            onChange={(e) => setUrlPhoto(e.target.value)}
-            style={{ flex: 1, padding: '11px 12px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '13px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-          />
-          <button onClick={enregistrerPhoto} style={{ border: 'none', backgroundColor: '#B8863C', color: '#FFF', borderRadius: '12px', padding: '0 16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}>OK</button>
-          <button onClick={() => { setEditionPhoto(false); setUrlPhoto(''); }} style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', borderRadius: '12px', width: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconX size={16} /></button>
-        </div>
-      )}
 
       {/* Voyageurs */}
       {voyage.voyageurs && voyage.voyageurs.length > 0 && (
