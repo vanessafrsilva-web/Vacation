@@ -136,20 +136,32 @@ function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownRef]);
 
-  // Chargement des VRAIS voyages depuis Firebase
+  // Chargement des VRAIS voyages depuis Firebase — uniquement une fois la
+  // connexion confirmée (sinon Firestore refuse l'accès et l'écoute reste
+  // bloquée pour le reste de la session, même après connexion).
   useEffect(() => {
+    if (!utilisateur) {
+      setVoyages([]);
+      return;
+    }
     const q = query(collection(db, 'voyages'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const voyagesData = [];
-      snapshot.forEach((doc) => {
-        voyagesData.push({ id: doc.id, ...doc.data() });
-      });
-      // Tri du plus proche au plus lointain
-      voyagesData.sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
-      setVoyages(voyagesData);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const voyagesData = [];
+        snapshot.forEach((doc) => {
+          voyagesData.push({ id: doc.id, ...doc.data() });
+        });
+        // Tri du plus proche au plus lointain
+        voyagesData.sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
+        setVoyages(voyagesData);
+      },
+      (error) => {
+        console.error("Erreur de chargement des voyages :", error);
+      }
+    );
     return () => unsubscribe();
-  }, []);
+  }, [utilisateur]);
 
   const handleAddDestinationField = () => {
     setDestinations([...destinations, { nom: '', dateDebut: '', dateFin: '' }]);
@@ -388,7 +400,7 @@ function App() {
     // 1. MAIN PAGE : Le Tableau de Bord
     if (!voyageActuelObj) {
       return (
-        <div style={{ padding: '20px 15px', animation: 'fadeIn 0.3s ease' }}>
+        <div style={{ padding: 'calc(20px + env(safe-area-inset-top)) 15px 20px 15px', animation: 'fadeIn 0.3s ease' }}>
           
           {/* En-tête de l'accueil */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -880,7 +892,7 @@ function App() {
       
       {/* Barre de navigation du haut (visible uniquement si un voyage est ouvert) */}
       {voyageActuelObj && (
-        <div style={{ padding: '15px 15px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #E8DFCF' }}>
+        <div style={{ padding: 'calc(15px + env(safe-area-inset-top)) 15px 15px 15px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #E8DFCF' }}>
           <div style={{ maxWidth: '500px', margin: '0 auto', position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={() => { setVoyageActif(''); setIsDropdownOpen(false); }}
