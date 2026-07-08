@@ -5,9 +5,11 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
-  IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText
+  IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
+  IconExternalLink
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
+import { Meteo } from './Meteo';
 
 // Chaque catégorie définit son icône/couleur ET, si besoin, un champ de
 // détail spécifique (label + placeholder) affiché uniquement pour elle.
@@ -353,11 +355,44 @@ export const Planning = ({ voyage, currentUserId }) => {
   return (
     <div style={{ padding: '20px 10px', fontFamily: "system-ui, sans-serif" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Planning</h2>
         <button onClick={() => (showForm ? resetForm() : setShowForm(true))} style={{ backgroundColor: '#B8863C', color: '#FFF', border: 'none', padding: '10px 16px', borderRadius: '16px', fontWeight: '700', cursor: 'pointer' }}>
           {showForm ? <IconX size={18} /> : <IconPlus size={18} />}
         </button>
+      </div>
+
+      <Meteo voyage={voyage} />
+
+      {/* Recherche rapide — pour trouver un point de vidange ou une laverie
+          en route, sans qu'on ait à intégrer les données de sites tiers */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '20px' }}>
+        {[
+          { label: '🚿 Vidange / service', mot: 'camping car service point chemical toilet disposal' },
+          { label: '🧺 Laverie', mot: 'laundrette launderette' }
+        ].map((r) => {
+          const zone = (voyage?.isMultiDest && voyage?.destinations?.[0]?.nom) || voyage?.nom || '';
+          const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.mot + ' near ' + zone)}`;
+          return (
+            <a
+              key={r.label}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 13px', borderRadius: '999px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#2B2420', fontSize: '12.5px', fontWeight: '700', textDecoration: 'none' }}
+            >
+              {r.label} <IconExternalLink size={12} color="#B5A793" />
+            </a>
+          );
+        })}
+        <a
+          href="https://park4night.com/en/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 13px', borderRadius: '999px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#2B2420', fontSize: '12.5px', fontWeight: '700', textDecoration: 'none' }}
+        >
+          🅿️ Park4Night <IconExternalLink size={12} color="#B5A793" />
+        </a>
       </div>
 
       {showForm && (
