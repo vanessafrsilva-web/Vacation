@@ -28,7 +28,7 @@ const CATEGORIES = [
   },
   {
     id: 'transport', label: 'Transport', icon: <IconCar size={20} />, color: '#5E8A87', bg: '#EEF3F2',
-    detailLabel: 'Compagnie / réf. réservation', detailPlaceholder: 'ex: Train ScotRail, résa #12345'
+    detailLabel: 'Compagnie / réf. réservation', detailPlaceholder: 'ex: Train ScotRail, résa #12345', rechercheAdresse: true
   },
   {
     id: 'resto', label: 'Resto / Brunch', icon: <IconCoffee size={20} />, color: '#B8863C', bg: '#F1E8D8',
@@ -368,8 +368,8 @@ export const Planning = ({ voyage, currentUserId }) => {
           en route, sans qu'on ait à intégrer les données de sites tiers */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '20px' }}>
         {[
-          { label: '🚿 Vidange', mot: 'camping car service point chemical toilet disposal' },
-          { label: '🧺 Laverie', mot: 'laundry launderette' }
+          { label: '🚿 Vidange / service', mot: 'camping car service point chemical toilet disposal' },
+          { label: '🧺 Laverie', mot: 'laundrette launderette' }
         ].map((r) => {
           const zone = (voyage?.isMultiDest && voyage?.destinations?.[0]?.nom) || voyage?.nom || '';
           const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.mot + ' near ' + zone)}`;
