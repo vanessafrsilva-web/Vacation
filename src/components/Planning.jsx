@@ -368,8 +368,8 @@ export const Planning = ({ voyage, currentUserId }) => {
           en route, sans qu'on ait à intégrer les données de sites tiers */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '20px' }}>
         {[
-          { label: '🚿 Vidange / service', mot: 'camping car service point chemical toilet disposal' },
-          { label: '🧺 Laverie', mot: 'laundrette launderette' }
+          { label: '🚿 Vidange', mot: 'camping car service point chemical toilet disposal' },
+          { label: '🧺 Laverie', mot: 'laundry launderette' }
         ].map((r) => {
           const zone = (voyage?.isMultiDest && voyage?.destinations?.[0]?.nom) || voyage?.nom || '';
           const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.mot + ' near ' + zone)}`;
