@@ -39,17 +39,22 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
   // Distance et temps de route entre chaque étape consécutive, via OSRM
   // (service public gratuit, sans clé, basé sur OpenStreetMap).
   const [trajets, setTrajets] = useState([]);
+  const [chargementTrajets, setChargementTrajets] = useState(false);
+  const [erreurTrajets, setErreurTrajets] = useState(false);
 
   useEffect(() => {
-    if (points.length < 2) { setTrajets([]); return; }
+    if (points.length < 2) { setTrajets([]); setErreurTrajets(false); return; }
 
     const chercherTrajets = async () => {
+      setChargementTrajets(true);
+      setErreurTrajets(false);
       try {
         const coords = points.map((p) => `${p.lon},${p.lat}`).join(';');
         const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`);
         if (!res.ok) throw new Error(`Statut ${res.status}`);
         const data = await res.json();
         const legs = data?.routes?.[0]?.legs || [];
+        if (legs.length === 0) throw new Error('Aucun trajet renvoyé');
         setTrajets(legs.map((leg, i) => ({
           de: points[i],
           a: points[i + 1],
@@ -59,6 +64,9 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
       } catch (error) {
         console.warn("Temps de trajet indisponibles.", error);
         setTrajets([]);
+        setErreurTrajets(true);
+      } finally {
+        setChargementTrajets(false);
       }
     };
 
@@ -162,6 +170,16 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
       {points.length > 0 && (
         <p style={{ marginTop: '12px', fontSize: '12px', color: '#8A7B68', textAlign: 'center' }}>
           {points.length} lieu{points.length > 1 ? 'x' : ''} géolocalisé{points.length > 1 ? 's' : ''}, numérotés dans l'ordre chronologique du voyage. Les catégories comme Taxi ou Transport n'ont pas d'adresse recherchée, elles n'apparaissent donc pas ici.
+        </p>
+      )}
+
+      {chargementTrajets && (
+        <p style={{ marginTop: '14px', fontSize: '12px', color: '#B5A793', textAlign: 'center' }}>Calcul des temps de trajet...</p>
+      )}
+
+      {erreurTrajets && (
+        <p style={{ marginTop: '14px', fontSize: '12px', color: '#B3453A', textAlign: 'center' }}>
+          Impossible de calculer les temps de trajet pour l'instant (service de routage indisponible). Réessaie plus tard.
         </p>
       )}
 

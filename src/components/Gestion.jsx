@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
   IconCalendar, IconChecklist, IconReceipt2, IconUsers, IconArrowRight,
-  IconPlaneDeparture, IconTrophy, IconToolsKitchen2
+  IconPlaneDeparture, IconTrophy, IconToolsKitchen2, IconBasket
 } from '@tabler/icons-react';
 
 // Même logique de dégradé de secours que sur la liste "Mes Voyages",
@@ -86,6 +86,10 @@ export function Gestion({ voyage, setActiveTab }) {
     {
       id: 'repas', label: 'Menus & repas', icon: <IconToolsKitchen2 size={22} />, color: '#10B981', bg: '#ECFDF5',
       sousTitre: 'Qui cuisine quoi'
+    },
+    {
+      id: 'courses', label: 'Liste de courses', icon: <IconBasket size={22} />, color: '#6E8AA6', bg: '#EEF2F0',
+      sousTitre: 'À jour en temps réel'
     }
   ];
 

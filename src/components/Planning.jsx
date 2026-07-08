@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db, storage } from '../firebase';
 import { collection, query, where, getDocs, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import jsPDF from 'jspdf';
 import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
-  IconExternalLink
+  IconExternalLink, IconDownload
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 import { Meteo } from './Meteo';
@@ -208,6 +209,82 @@ export const Planning = ({ voyage, currentUserId }) => {
     return acc;
   }, {});
 
+  // Génère un PDF simple et lisible de l'itinéraire, téléchargé directement
+  // dans le navigateur (aucun serveur, aucune donnée envoyée nulle part).
+  const exporterPDF = () => {
+    const pdf = new jsPDF();
+    const margeGauche = 14;
+    let y = 20;
+
+    pdf.setFont(undefined, 'bold');
+    pdf.setFontSize(18);
+    pdf.text(voyage.nom || 'Mon itinéraire', margeGauche, y);
+    y += 8;
+
+    if (voyage.dateDebut && voyage.dateFin) {
+      pdf.setFont(undefined, 'normal');
+      pdf.setFontSize(11);
+      pdf.setTextColor(120);
+      const periode = `${new Date(voyage.dateDebut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} → ${new Date(voyage.dateFin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      pdf.text(periode, margeGauche, y);
+      pdf.setTextColor(0);
+      y += 10;
+    } else {
+      y += 4;
+    }
+
+    const joursTries = Object.keys(groups).sort();
+
+    if (joursTries.length === 0) {
+      pdf.setFontSize(12);
+      pdf.text("Aucune activité planifiée pour l'instant.", margeGauche, y);
+    }
+
+    joursTries.forEach((jour) => {
+      if (y > 270) { pdf.addPage(); y = 20; }
+
+      pdf.setFont(undefined, 'bold');
+      pdf.setFontSize(13);
+      const titreJour = new Date(jour).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      pdf.text(titreJour.charAt(0).toUpperCase() + titreJour.slice(1), margeGauche, y);
+      y += 7;
+
+      const activitesJour = [...groups[jour]].sort((a, b) => (a.heure || '').localeCompare(b.heure || ''));
+
+      activitesJour.forEach((act) => {
+        if (y > 275) { pdf.addPage(); y = 20; }
+
+        pdf.setFont(undefined, 'bold');
+        pdf.setFontSize(10.5);
+        pdf.text(`${act.heure || '--:--'}  ${act.titre}`, margeGauche + 4, y);
+        y += 5;
+
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(9.5);
+        pdf.setTextColor(110);
+
+        let lieuTexte = '';
+        if (act.categorie === 'vol' && (act.depart || act.arrivee)) {
+          lieuTexte = `${act.depart || '?'} → ${act.arrivee || '?'}`;
+        } else if (act.lieu) {
+          lieuTexte = act.lieu;
+        }
+        if (lieuTexte) { pdf.text(lieuTexte, margeGauche + 4, y); y += 4.5; }
+
+        if (act.detail) { pdf.text(act.detail, margeGauche + 4, y); y += 4.5; }
+        if (act.prix != null) { pdf.text(`${act.prix.toFixed(2)} CHF`, margeGauche + 4, y); y += 4.5; }
+
+        pdf.setTextColor(0);
+        y += 3;
+      });
+
+      y += 4;
+    });
+
+    const nomFichier = `Itineraire_${(voyage.nom || 'voyage').replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`;
+    pdf.save(nomFichier);
+  };
+
   const resetForm = () => {
     setTitre(''); setDate(''); setHeure(''); setLieu(''); setDepart(''); setArrivee('');
     setCategorie('visite'); setDetail(''); setDateDepart(''); setPrix('');
@@ -357,9 +434,16 @@ export const Planning = ({ voyage, currentUserId }) => {
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h2 style={{ fontSize: '26px', fontWeight: '700', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Planning</h2>
-        <button onClick={() => (showForm ? resetForm() : setShowForm(true))} style={{ backgroundColor: '#B8863C', color: '#FFF', border: 'none', padding: '10px 16px', borderRadius: '16px', fontWeight: '700', cursor: 'pointer' }}>
-          {showForm ? <IconX size={18} /> : <IconPlus size={18} />}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {activites.length > 0 && (
+            <button onClick={exporterPDF} title="Exporter en PDF" style={{ backgroundColor: '#FFFFFF', color: '#2B2420', border: '1px solid #E8DFCF', padding: '10px 12px', borderRadius: '16px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <IconDownload size={18} />
+            </button>
+          )}
+          <button onClick={() => (showForm ? resetForm() : setShowForm(true))} style={{ backgroundColor: '#B8863C', color: '#FFF', border: 'none', padding: '10px 16px', borderRadius: '16px', fontWeight: '700', cursor: 'pointer' }}>
+            {showForm ? <IconX size={18} /> : <IconPlus size={18} />}
+          </button>
+        </div>
       </div>
 
       <Meteo voyage={voyage} />
@@ -368,7 +452,7 @@ export const Planning = ({ voyage, currentUserId }) => {
           en route, sans qu'on ait à intégrer les données de sites tiers */}
       <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '20px' }}>
         {[
-          { label: '🚿 Vidange / service', mot: 'camping car service point chemical toilet disposal' },
+          { label: '🚿 Vidange', mot: 'camping car service point chemical toilet disposal' },
           { label: '🧺 Laverie', mot: 'laundrette launderette' }
         ].map((r) => {
           const zone = (voyage?.isMultiDest && voyage?.destinations?.[0]?.nom) || voyage?.nom || '';
