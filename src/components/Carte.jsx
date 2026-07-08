@@ -3,14 +3,16 @@ import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { IconArrowLeft, IconMapOff } from '@tabler/icons-react';
+import { IconArrowLeft, IconMapOff, IconCar } from '@tabler/icons-react';
 
 const COULEURS_CATEGORIE = {
   hotel: '#9A6B87', resto: '#B8863C', visite: '#B97490',
-  taxi: '#F59E0B', transport: '#5E8A87', vol: '#6E8AA6'
+  taxi: '#F59E0B', transport: '#5E8A87', vol: '#6E8AA6',
+  service: '#5E8A87', laverie: '#6E8AA6'
 };
 const EMOJI_CATEGORIE = {
-  hotel: '🛏️', resto: '☕', visite: '📍', taxi: '🚕', transport: '🚗', vol: '✈️'
+  hotel: '🛏️', resto: '☕', visite: '📍', taxi: '🚕', transport: '🚗', vol: '✈️',
+  service: '🚿', laverie: '🧺'
 };
 
 export function Carte({ voyage, setActiveTab, integree = false }) {
@@ -33,6 +35,35 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
   // Seules les activités où une adresse a été choisie dans les suggestions
   // (hôtel / resto / visite) ont des coordonnées GPS enregistrées.
   const points = activites.filter((a) => typeof a.lat === 'number' && typeof a.lon === 'number');
+
+  // Distance et temps de route entre chaque étape consécutive, via OSRM
+  // (service public gratuit, sans clé, basé sur OpenStreetMap).
+  const [trajets, setTrajets] = useState([]);
+
+  useEffect(() => {
+    if (points.length < 2) { setTrajets([]); return; }
+
+    const chercherTrajets = async () => {
+      try {
+        const coords = points.map((p) => `${p.lon},${p.lat}`).join(';');
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`);
+        if (!res.ok) throw new Error(`Statut ${res.status}`);
+        const data = await res.json();
+        const legs = data?.routes?.[0]?.legs || [];
+        setTrajets(legs.map((leg, i) => ({
+          de: points[i],
+          a: points[i + 1],
+          distanceKm: leg.distance / 1000,
+          dureeMin: leg.duration / 60
+        })));
+      } catch (error) {
+        console.warn("Temps de trajet indisponibles.", error);
+        setTrajets([]);
+      }
+    };
+
+    chercherTrajets();
+  }, [points.map((p) => `${p.lat},${p.lon}`).join('|')]);
 
   // Construction / mise à jour de la carte Leaflet
   useEffect(() => {
@@ -132,6 +163,22 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
         <p style={{ marginTop: '12px', fontSize: '12px', color: '#8A7B68', textAlign: 'center' }}>
           {points.length} lieu{points.length > 1 ? 'x' : ''} géolocalisé{points.length > 1 ? 's' : ''}, numérotés dans l'ordre chronologique du voyage. Les catégories comme Taxi ou Transport n'ont pas d'adresse recherchée, elles n'apparaissent donc pas ici.
         </p>
+      )}
+
+      {trajets.length > 0 && (
+        <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {trajets.map((t, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E8DFCF' }}>
+              <IconCar size={16} color="#B8863C" style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: '12.5px', color: '#2B2420', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {i + 1}. {t.de.titre} → {i + 2}. {t.a.titre}
+              </span>
+              <span style={{ fontSize: '12px', color: '#8A7B68', fontWeight: '700', flexShrink: 0 }}>
+                {t.distanceKm.toFixed(0)} km · {t.dureeMin < 60 ? `${Math.round(t.dureeMin)} min` : `${Math.floor(t.dureeMin / 60)}h${String(Math.round(t.dureeMin % 60)).padStart(2, '0')}`}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
