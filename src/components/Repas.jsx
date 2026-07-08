@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import {
-  IconArrowLeft, IconSun, IconSalad, IconMoon, IconChevronDown, IconTrash, IconUsers
+  IconArrowLeft, IconSun, IconSalad, IconMoon, IconChevronDown, IconTrash, IconUsers, IconShoppingCart, IconCheck
 } from '@tabler/icons-react';
 
 const TYPES_REPAS = [
@@ -24,11 +24,13 @@ const genererJours = (debut, fin) => {
   return jours;
 };
 
-export function Repas({ voyage, setActiveTab }) {
+export function Repas({ voyage, setActiveTab, currentUserId, currentUserNom }) {
   const [repas, setRepas] = useState([]);
   const [editionActive, setEditionActive] = useState(null); // { date, type } ou null
   const [menuSaisi, setMenuSaisi] = useState('');
   const [responsableSaisi, setResponsableSaisi] = useState('');
+  const [ingredientSaisi, setIngredientSaisi] = useState('');
+  const [ingredientAjoute, setIngredientAjoute] = useState(false);
 
   const voyageurs = voyage?.voyageurs || [];
   const jours = genererJours(voyage?.dateDebut, voyage?.dateFin);
@@ -58,6 +60,29 @@ export function Repas({ voyage, setActiveTab }) {
     setEditionActive(null);
     setMenuSaisi('');
     setResponsableSaisi('');
+    setIngredientSaisi('');
+  };
+
+  // Ajoute directement un ingrédient à la Liste de courses partagée (même
+  // collection Firestore 'courses'), pour faire le lien "menu du jour → à acheter"
+  const ajouterIngredient = async () => {
+    if (!ingredientSaisi.trim()) return;
+    try {
+      await addDoc(collection(db, 'courses'), {
+        nom: ingredientSaisi.trim(),
+        quantite: null,
+        achete: false,
+        voyageId: voyage.id,
+        ajouteParId: currentUserId || null,
+        ajouteParNom: currentUserNom || 'Quelqu\'un',
+        createdAt: serverTimestamp()
+      });
+      setIngredientSaisi('');
+      setIngredientAjoute(true);
+      setTimeout(() => setIngredientAjoute(false), 1500);
+    } catch (error) {
+      console.error("Erreur d'ajout à la liste de courses :", error);
+    }
   };
 
   const enregistrerRepas = async () => {
@@ -189,6 +214,29 @@ export function Repas({ voyage, setActiveTab }) {
                             </div>
                           </div>
                         )}
+
+                        <div>
+                          <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <IconShoppingCart size={12} /> Il manque un ingrédient ?
+                          </p>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <input
+                              type="text"
+                              placeholder="ex: Tomates"
+                              value={ingredientSaisi}
+                              onChange={(e) => setIngredientSaisi(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); ajouterIngredient(); } }}
+                              style={{ flex: 1, minWidth: 0, padding: '9px 10px', borderRadius: '9px', border: '1px solid #E8DFCF', fontSize: '12.5px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={ajouterIngredient}
+                              style={{ flexShrink: 0, width: '36px', border: 'none', backgroundColor: ingredientAjoute ? '#10B981' : '#6E8AA6', color: '#FFF', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              {ingredientAjoute ? <IconCheck size={16} /> : <IconShoppingCart size={15} />}
+                            </button>
+                          </div>
+                        </div>
 
                         <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                           {r && (

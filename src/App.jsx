@@ -6,6 +6,8 @@ import { Gestion } from './components/Gestion';
 import { Bilan } from './components/Bilan';
 import { Repas } from './components/Repas';
 import { ListeCourses } from './components/ListeCourses';
+import { FicheUrgence } from './components/FicheUrgence';
+import { CarnetGlobal } from './components/CarnetGlobal';
 import { Planning } from './components/Planning';
 import { Checklist } from './components/Checklist';
 import { Budget } from './components/Budget';
@@ -15,7 +17,7 @@ import { onAuthStateChanged, signOut, fetchSignInMethodsForEmail } from 'firebas
 import emailjs from '@emailjs/browser';
 import { Auth } from './components/Auth';
 import { Profil } from './components/Profil';
-import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle } from '@tabler/icons-react';
+import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook } from '@tabler/icons-react';
 
 function App() {
   const [appDemarree, setAppDemarree] = useState(false);
@@ -51,6 +53,7 @@ function App() {
   // vérification, null = pas connecté, objet = connecté.
   const [utilisateur, setUtilisateur] = useState(undefined);
   const [showProfil, setShowProfil] = useState(false);
+  const [showCarnet, setShowCarnet] = useState(false);
   const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
   useEffect(() => {
@@ -468,6 +471,12 @@ function App() {
             <span style={{ fontSize: '13px', color: '#8A7B68' }}>{monNom}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <button
+                onClick={() => setShowCarnet(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+              >
+                <IconNotebook size={14} /> Carnet
+              </button>
+              <button
                 onClick={() => setShowProfil(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
               >
@@ -778,8 +787,9 @@ function App() {
       case 'checklist': return <Checklist voyageId={voyageActuelObj.id} voyage={voyageActuelObj} />;
       case 'facturation': return <Budget voyage={voyageActuelObj} />;
       case 'bilan': return <Bilan voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
-      case 'repas': return <Repas voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
+      case 'repas': return <Repas voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'courses': return <ListeCourses voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
+      case 'urgence': return <FicheUrgence voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       default: return <div>Écran introuvable</div>;
     }
   };
@@ -954,6 +964,10 @@ function App() {
 
   if (!utilisateur) {
     return <Auth />;
+  }
+
+  if (showCarnet) {
+    return <CarnetGlobal voyages={voyages} onClose={() => setShowCarnet(false)} />;
   }
 
   // --- RENDU GLOBAL (STRUCTURE DE L'APP CLAIRE) ---

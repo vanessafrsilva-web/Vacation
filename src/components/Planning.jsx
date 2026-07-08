@@ -209,77 +209,140 @@ export const Planning = ({ voyage, currentUserId }) => {
     return acc;
   }, {});
 
-  // Génère un PDF simple et lisible de l'itinéraire, téléchargé directement
-  // dans le navigateur (aucun serveur, aucune donnée envoyée nulle part).
+  // Génère un PDF avec une vraie mise en page (bandeau, cartes colorées,
+  // pied de page) plutôt que du texte brut — téléchargé directement dans le
+  // navigateur, aucune donnée envoyée à un serveur.
+  const COULEUR_CATEGORIE_PDF = {
+    vol: [110, 138, 166], hotel: [154, 107, 135], taxi: [245, 158, 11],
+    transport: [94, 138, 135], resto: [184, 134, 60], visite: [185, 116, 144]
+  };
+
   const exporterPDF = () => {
     const pdf = new jsPDF();
-    const margeGauche = 14;
-    let y = 20;
+    const pageW = pdf.internal.pageSize.getWidth();
+    const margeGauche = 16;
+    const margeDroite = 16;
+    const largeurUtile = pageW - margeGauche - margeDroite;
+    let y = 0;
 
-    pdf.setFont(undefined, 'bold');
-    pdf.setFontSize(18);
-    pdf.text(voyage.nom || 'Mon itinéraire', margeGauche, y);
-    y += 8;
+    const OR = [184, 134, 60];
+    const BRUN = [43, 36, 32];
+    const GRIS = [138, 123, 104];
+    const CREME = [247, 241, 232];
+
+    const nouvellePage = () => {
+      pdf.addPage();
+      y = 20;
+    };
+
+    // --- Bandeau d'en-tête (uniquement sur la première page) ---
+    pdf.setFillColor(...BRUN);
+    pdf.rect(0, 0, pageW, 34, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('times', 'bold');
+    pdf.setFontSize(21);
+    pdf.text(voyage.nom || 'Mon itinéraire', margeGauche, 20);
 
     if (voyage.dateDebut && voyage.dateFin) {
-      pdf.setFont(undefined, 'normal');
-      pdf.setFontSize(11);
-      pdf.setTextColor(120);
-      const periode = `${new Date(voyage.dateDebut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} → ${new Date(voyage.dateFin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
-      pdf.text(periode, margeGauche, y);
-      pdf.setTextColor(0);
-      y += 10;
-    } else {
-      y += 4;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setTextColor(230, 210, 180);
+      const periode = `${new Date(voyage.dateDebut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}  →  ${new Date(voyage.dateFin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+      pdf.text(periode, margeGauche, 28);
     }
+
+    pdf.setTextColor(0, 0, 0);
+    y = 46;
 
     const joursTries = Object.keys(groups).sort();
 
     if (joursTries.length === 0) {
+      pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(12);
+      pdf.setTextColor(...GRIS);
       pdf.text("Aucune activité planifiée pour l'instant.", margeGauche, y);
     }
 
     joursTries.forEach((jour) => {
-      if (y > 270) { pdf.addPage(); y = 20; }
+      if (y > 265) nouvellePage();
 
-      pdf.setFont(undefined, 'bold');
-      pdf.setFontSize(13);
+      // Bande dorée du jour
+      pdf.setFillColor(...OR);
+      pdf.roundedRect(margeGauche, y, largeurUtile, 9, 2, 2, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
       const titreJour = new Date(jour).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-      pdf.text(titreJour.charAt(0).toUpperCase() + titreJour.slice(1), margeGauche, y);
-      y += 7;
+      pdf.text((titreJour.charAt(0).toUpperCase() + titreJour.slice(1)), margeGauche + 4, y + 6.2);
+      y += 15;
 
       const activitesJour = [...groups[jour]].sort((a, b) => (a.heure || '').localeCompare(b.heure || ''));
 
       activitesJour.forEach((act) => {
-        if (y > 275) { pdf.addPage(); y = 20; }
-
-        pdf.setFont(undefined, 'bold');
-        pdf.setFontSize(10.5);
-        pdf.text(`${act.heure || '--:--'}  ${act.titre}`, margeGauche + 4, y);
-        y += 5;
-
-        pdf.setFont(undefined, 'normal');
-        pdf.setFontSize(9.5);
-        pdf.setTextColor(110);
-
+        // Calcul de la hauteur de la carte selon le contenu
         let lieuTexte = '';
         if (act.categorie === 'vol' && (act.depart || act.arrivee)) {
           lieuTexte = `${act.depart || '?'} → ${act.arrivee || '?'}`;
         } else if (act.lieu) {
           lieuTexte = act.lieu;
         }
-        if (lieuTexte) { pdf.text(lieuTexte, margeGauche + 4, y); y += 4.5; }
+        let hauteur = 12;
+        if (lieuTexte) hauteur += 5;
+        if (act.detail) hauteur += 5;
 
-        if (act.detail) { pdf.text(act.detail, margeGauche + 4, y); y += 4.5; }
-        if (act.prix != null) { pdf.text(`${act.prix.toFixed(2)} CHF`, margeGauche + 4, y); y += 4.5; }
+        if (y + hauteur > 280) nouvellePage();
 
-        pdf.setTextColor(0);
-        y += 3;
+        const couleurCat = COULEUR_CATEGORIE_PDF[act.categorie] || GRIS;
+
+        // Fond de carte
+        pdf.setFillColor(...CREME);
+        pdf.roundedRect(margeGauche, y, largeurUtile, hauteur, 2, 2, 'F');
+        // Accent de couleur à gauche
+        pdf.setFillColor(...couleurCat);
+        pdf.rect(margeGauche, y, 2.2, hauteur, 'F');
+
+        let yTexte = y + 6;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10.5);
+        pdf.setTextColor(...BRUN);
+        pdf.text(`${act.heure || '--:--'}`, margeGauche + 6, yTexte);
+        pdf.text(act.titre, margeGauche + 24, yTexte);
+
+        if (act.prix != null) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(10);
+          pdf.setTextColor(...OR);
+          pdf.text(`${act.prix.toFixed(2)} CHF`, pageW - margeDroite - 4, yTexte, { align: 'right' });
+        }
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(...GRIS);
+
+        if (lieuTexte) { yTexte += 5; pdf.text(lieuTexte, margeGauche + 24, yTexte); }
+        if (act.detail) { yTexte += 5; pdf.text(act.detail, margeGauche + 24, yTexte); }
+
+        pdf.setTextColor(0, 0, 0);
+        y += hauteur + 4;
       });
 
-      y += 4;
+      y += 5;
     });
+
+    // --- Pied de page sur toutes les pages ---
+    const nbPages = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= nbPages; i++) {
+      pdf.setPage(i);
+      const pageH = pdf.internal.pageSize.getHeight();
+      pdf.setDrawColor(...OR);
+      pdf.setLineWidth(0.3);
+      pdf.line(margeGauche, pageH - 14, pageW - margeDroite, pageH - 14);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(...GRIS);
+      pdf.text('Nomade by Vanessa', margeGauche, pageH - 9);
+      pdf.text(`Page ${i} / ${nbPages}`, pageW - margeDroite, pageH - 9, { align: 'right' });
+    }
 
     const nomFichier = `Itineraire_${(voyage.nom || 'voyage').replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`;
     pdf.save(nomFichier);

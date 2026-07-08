@@ -153,8 +153,7 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
         <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF' }}>
           <IconMapOff size={32} color="#B5A793" style={{ marginBottom: '10px' }} />
           <p style={{ color: '#8A7B68', fontSize: '13.5px', margin: 0, lineHeight: '1.6' }}>
-            Aucune activité géolocalisée pour l'instant.<br />
-            Dans Planning, ajoute un hôtel, un resto ou une visite en <strong>choisissant une adresse dans les suggestions</strong> qui apparaissent (pas juste en tapant du texte) — c'est ce qui enregistre la position GPS.
+            Aucune activité géolocalisée pour l'instant.
           </p>
         </div>
       )}
@@ -167,35 +166,32 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
         }}
       ></div>
 
-      {points.length > 0 && (
-        <p style={{ marginTop: '12px', fontSize: '12px', color: '#8A7B68', textAlign: 'center' }}>
-          {points.length} lieu{points.length > 1 ? 'x' : ''} géolocalisé{points.length > 1 ? 's' : ''}, numérotés dans l'ordre chronologique du voyage. Les catégories comme Taxi ou Transport n'ont pas d'adresse recherchée, elles n'apparaissent donc pas ici.
-        </p>
-      )}
-
       {chargementTrajets && (
         <p style={{ marginTop: '14px', fontSize: '12px', color: '#B5A793', textAlign: 'center' }}>Calcul des temps de trajet...</p>
       )}
 
       {erreurTrajets && (
         <p style={{ marginTop: '14px', fontSize: '12px', color: '#B3453A', textAlign: 'center' }}>
-          Impossible de calculer les temps de trajet pour l'instant (service de routage indisponible). Réessaie plus tard.
+          Temps de trajet indisponibles pour l'instant. Réessaie plus tard.
         </p>
       )}
 
       {trajets.length > 0 && (
-        <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {trajets.map((t, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E8DFCF' }}>
-              <IconCar size={16} color="#B8863C" style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: '12.5px', color: '#2B2420', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {i + 1}. {t.de.titre} → {i + 2}. {t.a.titre}
-              </span>
-              <span style={{ fontSize: '12px', color: '#8A7B68', fontWeight: '700', flexShrink: 0 }}>
-                {t.distanceKm.toFixed(0)} km · {t.dureeMin < 60 ? `${Math.round(t.dureeMin)} min` : `${Math.floor(t.dureeMin / 60)}h${String(Math.round(t.dureeMin % 60)).padStart(2, '0')}`}
-              </span>
-            </div>
-          ))}
+        <div style={{ marginTop: '18px' }}>
+          <p style={{ margin: '0 0 10px 4px', fontSize: '13px', fontWeight: '800', color: '#8A7B68' }}>🚗 TRAJETS ENTRE LES ÉTAPES</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {trajets.map((t, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E8DFCF' }}>
+                <IconCar size={16} color="#B8863C" style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: '12.5px', color: '#2B2420', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {i + 1}. {t.de.titre} → {i + 2}. {t.a.titre}
+                </span>
+                <span style={{ fontSize: '12px', color: '#8A7B68', fontWeight: '700', flexShrink: 0 }}>
+                  {t.distanceKm.toFixed(0)} km · {t.dureeMin < 60 ? `${Math.round(t.dureeMin)} min` : `${Math.floor(t.dureeMin / 60)}h${String(Math.round(t.dureeMin % 60)).padStart(2, '0')}`}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

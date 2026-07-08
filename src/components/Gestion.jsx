@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
   IconCalendar, IconChecklist, IconReceipt2, IconUsers, IconArrowRight,
-  IconPlaneDeparture, IconTrophy, IconToolsKitchen2, IconBasket
+  IconPlaneDeparture, IconTrophy, IconToolsKitchen2, IconBasket, IconPhoneCall
 } from '@tabler/icons-react';
 
 // Même logique de dégradé de secours que sur la liste "Mes Voyages",
@@ -90,6 +90,10 @@ export function Gestion({ voyage, setActiveTab }) {
     {
       id: 'courses', label: 'Liste de courses', icon: <IconBasket size={22} />, color: '#6E8AA6', bg: '#EEF2F0',
       sousTitre: 'À jour en temps réel'
+    },
+    {
+      id: 'urgence', label: "Fiche d'urgence", icon: <IconPhoneCall size={22} />, color: '#B3453A', bg: '#F8EFF2',
+      sousTitre: 'Numéros importants'
     }
   ];
 

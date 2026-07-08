@@ -96,22 +96,22 @@ export function ListeCourses({ voyage, setActiveTab, currentUserId, currentUserN
       </div>
 
       {/* Formulaire d'ajout */}
-      <form onSubmit={ajouterArticle} style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+      <form onSubmit={ajouterArticle} style={{ display: 'flex', gap: '6px', marginBottom: '18px' }}>
         <input
           type="text"
           placeholder="Ajouter un article..."
           value={nom}
           onChange={(e) => setNom(e.target.value)}
-          style={{ flex: 2, padding: '13px 14px', borderRadius: '14px', border: '1px solid #E8DFCF', fontSize: '15px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ flex: 1, minWidth: 0, padding: '13px 14px', borderRadius: '14px', border: '1px solid #E8DFCF', fontSize: '15px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
         <input
           type="text"
           placeholder="Qté"
           value={quantite}
           onChange={(e) => setQuantite(e.target.value)}
-          style={{ flex: '0 0 70px', padding: '13px 10px', borderRadius: '14px', border: '1px solid #E8DFCF', fontSize: '15px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ flex: '0 0 56px', minWidth: 0, padding: '13px 8px', borderRadius: '14px', border: '1px solid #E8DFCF', fontSize: '15px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
         />
-        <button type="submit" style={{ flexShrink: 0, width: '46px', border: 'none', backgroundColor: '#10B981', color: '#FFF', borderRadius: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button type="submit" style={{ flexShrink: 0, width: '44px', border: 'none', backgroundColor: '#10B981', color: '#FFF', borderRadius: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <IconPlus size={20} />
         </button>
       </form>
