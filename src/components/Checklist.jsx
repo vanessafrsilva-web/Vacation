@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
+import { enregistrerHistorique } from '../historique';
 import {
   collection,
   addDoc,
@@ -245,6 +246,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
         auteurNom: auteurLabel,
         createdAt: serverTimestamp()
       });
+      enregistrerHistorique(voyageId, `a ajouté « ${nom.trim()} » à la Checklist`, auteurLabel);
     } catch (error) {
       console.error("Erreur d'ajout :", error);
     }

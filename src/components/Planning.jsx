@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 import { Meteo } from './Meteo';
+import { enregistrerHistorique } from '../historique';
 
 // Chaque catégorie définit son icône/couleur ET, si besoin, un champ de
 // détail spécifique (label + placeholder) affiché uniquement pour elle.
@@ -48,7 +49,7 @@ const CATEGORIE_BUDGET = {
   transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités'
 };
 
-export const Planning = ({ voyage, currentUserId }) => {
+export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   const [activites, setActivites] = useState([]);
   const [showForm, setShowForm] = useState(false);
 
@@ -459,9 +460,11 @@ export const Planning = ({ voyage, currentUserId }) => {
     let idActivite = idEnEdition;
     if (idEnEdition) {
       await updateDoc(doc(db, `voyages/${voyage.id}/activites`, idEnEdition), payload);
+      enregistrerHistorique(voyage.id, `a modifié « ${titre} » dans le Planning`, currentUserNom);
     } else {
       const docRef = await addDoc(collection(db, `voyages/${voyage.id}/activites`), payload);
       idActivite = docRef.id;
+      enregistrerHistorique(voyage.id, `a ajouté « ${titre} » au Planning`, currentUserNom);
     }
 
     await synchroniserBudget(idActivite, titre, prix, categorie);
@@ -471,6 +474,7 @@ export const Planning = ({ voyage, currentUserId }) => {
   const handleDeleteActivite = async (act) => {
     if (window.confirm(`Supprimer « ${act.titre} » du planning ?`)) {
       await deleteDoc(doc(db, `voyages/${voyage.id}/activites`, act.id));
+      enregistrerHistorique(voyage.id, `a supprimé « ${act.titre} » du Planning`, currentUserNom);
       // Retire aussi la dépense Budget liée, si elle existe
       const q = query(collection(db, 'budget'), where('voyageId', '==', voyage.id), where('activiteId', '==', act.id));
       const snapshot = await getDocs(q);

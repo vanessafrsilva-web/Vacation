@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { Convertisseur } from './Convertisseur';
+import { enregistrerHistorique } from '../historique';
 import {
   IconTrash, IconReceipt2, IconGasStation, IconBasket, IconCoffee, IconTicket,
   IconBuildingStore, IconPencil, IconCheck, IconX,
@@ -13,7 +14,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 // alignées sur la palette du reste de l'app
 const COULEURS_VOYAGEURS = ['#6E8AA6', '#9A6B87', '#F59E0B', '#B8863C', '#B3453A', '#5E8A87', '#B97490'];
 
-export function Budget({ voyage, voyageId }) {
+export function Budget({ voyage, voyageId, currentUserNom }) {
   // Compat : si jamais seul voyageId est encore passé quelque part
   const idVoyage = voyage?.id || voyageId;
 
@@ -138,6 +139,7 @@ export function Budget({ voyage, voyageId }) {
         voyageId: idVoyage,
         timestamp: Date.now()
       });
+      enregistrerHistorique(idVoyage, `a ajouté la dépense « ${titre} » (${parseFloat(montant).toFixed(2)} CHF)`, currentUserNom);
       setTitre(''); setMontant(''); setShowForm(false); setRecuPreview(null);
       setBeneficiaires(voyageurs.map((v) => v.id));
     } catch (error) {
@@ -159,6 +161,7 @@ export function Budget({ voyage, voyageId }) {
         voyageId: idVoyage,
         timestamp: Date.now()
       });
+      enregistrerHistorique(idVoyage, `a marqué un remboursement de ${nomVoyageur(deQui)} vers ${nomVoyageur(aQui)} comme réglé`, currentUserNom);
     } catch (error) {
       console.error("Erreur d'enregistrement du remboursement :", error);
     }
@@ -185,6 +188,7 @@ export function Budget({ voyage, voyageId }) {
         voyageId: idVoyage,
         timestamp: Date.now()
       });
+      enregistrerHistorique(idVoyage, `a ajouté ${parseFloat(apportMontant).toFixed(2)} CHF à la cagnotte`, currentUserNom);
       setApportMontant('');
       setShowApportForm(false);
     } catch (error) {

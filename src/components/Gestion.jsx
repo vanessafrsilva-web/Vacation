@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
   IconCalendar, IconChecklist, IconReceipt2, IconUsers, IconArrowRight,
-  IconPlaneDeparture, IconTrophy, IconToolsKitchen2, IconBasket, IconPhoneCall
+  IconPlaneDeparture, IconTrophy, IconToolsKitchen2, IconBasket, IconPhoneCall, IconHistory, IconSun
 } from '@tabler/icons-react';
 
 // Même logique de dégradé de secours que sur la liste "Mes Voyages",
@@ -94,6 +94,10 @@ export function Gestion({ voyage, setActiveTab }) {
     {
       id: 'urgence', label: "Fiche d'urgence", icon: <IconPhoneCall size={22} />, color: '#B3453A', bg: '#F8EFF2',
       sousTitre: 'Numéros importants'
+    },
+    {
+      id: 'historique', label: 'Historique', icon: <IconHistory size={22} />, color: '#8A7B68', bg: '#F1E8D8',
+      sousTitre: 'Qui a fait quoi'
     }
   ];
 
@@ -126,6 +130,26 @@ export function Gestion({ voyage, setActiveTab }) {
         </div>
       </div>
 
+
+      {/* Bandeau "Aujourd'hui" — bien visible, uniquement si le voyage est en cours */}
+      {statutVoyage === 'en cours' && (
+        <div
+          onClick={() => setActiveTab && setActiveTab('aujourdhui')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 18px',
+            backgroundColor: '#2B2420', borderRadius: '18px', marginBottom: '16px', cursor: 'pointer'
+          }}
+        >
+          <div style={{ backgroundColor: 'rgba(184,134,60,0.25)', color: '#B8863C', padding: '10px', borderRadius: '13px', display: 'flex' }}>
+            <IconSun size={22} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '15px', fontWeight: '800', color: '#FFFFFF' }}>Voir aujourd'hui</div>
+            <div style={{ fontSize: '12px', color: '#D9CDB8' }}>Programme du jour, météo, prochaine activité</div>
+          </div>
+          <IconArrowRight size={18} color="#D9CDB8" />
+        </div>
+      )}
 
       {/* Voyageurs */}
       {voyage.voyageurs && voyage.voyageurs.length > 0 && (

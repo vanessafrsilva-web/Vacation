@@ -7,6 +7,8 @@ import { Bilan } from './components/Bilan';
 import { Repas } from './components/Repas';
 import { ListeCourses } from './components/ListeCourses';
 import { FicheUrgence } from './components/FicheUrgence';
+import { Historique } from './components/Historique';
+import { Aujourdhui } from './components/Aujourdhui';
 import { CarnetGlobal } from './components/CarnetGlobal';
 import { Planning } from './components/Planning';
 import { Checklist } from './components/Checklist';
@@ -782,10 +784,12 @@ function App() {
 
     // REDIRECTION VERS LES AUTRES MODULES
     switch (activeTab) {
-      case 'planning': return <Planning voyage={voyageActuelObj} currentUserId={utilisateur?.uid} />;
+      case 'planning': return <Planning voyage={voyageActuelObj} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'gestion': return <Gestion voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       case 'checklist': return <Checklist voyageId={voyageActuelObj.id} voyage={voyageActuelObj} />;
-      case 'facturation': return <Budget voyage={voyageActuelObj} />;
+      case 'facturation': return <Budget voyage={voyageActuelObj} currentUserNom={monNom} />;
+      case 'historique': return <Historique voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
+      case 'aujourdhui': return <Aujourdhui voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       case 'bilan': return <Bilan voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       case 'repas': return <Repas voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'courses': return <ListeCourses voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
@@ -976,6 +980,15 @@ function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Empêche Safari iOS de zoomer automatiquement sur les champs de
+           saisie dont la police fait moins de 16px — c'est ce qui cause
+           l'écran qui "saute" ou reste zoomé en tapant sur mobile. */
+        @media (max-width: 768px) {
+          input, select, textarea {
+            font-size: 16px !important;
+          }
+        }
       `}</style>
       
       {/* Barre de navigation du haut (visible uniquement si un voyage est ouvert) */}

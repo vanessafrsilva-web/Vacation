@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { enregistrerHistorique } from '../historique';
 import {
   IconArrowLeft, IconSun, IconSalad, IconMoon, IconChevronDown, IconTrash, IconUsers, IconShoppingCart, IconCheck
 } from '@tabler/icons-react';
@@ -108,6 +109,8 @@ export function Repas({ voyage, setActiveTab, currentUserId, currentUserNom }) {
     } else {
       await addDoc(collection(db, 'repas'), payload);
     }
+    const labelType = TYPES_REPAS.find((t) => t.id === type)?.label || type;
+    enregistrerHistorique(voyage.id, `a mis à jour le menu de ${labelType.toLowerCase()} du ${new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`, currentUserNom);
     fermerEdition();
   };
 
