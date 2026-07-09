@@ -99,6 +99,15 @@ const CATEGORIES = [
 ];
 const trouverCategorie = (id) => CATEGORIES.find((c) => c.id === id);
 
+// Classification $ / $$ / $$$ à partir du prix par personne (CHF, seuils
+// indicatifs — adaptables si besoin).
+const classifierPrix = (parPersonne) => {
+  if (parPersonne == null) return null;
+  if (parPersonne < 30) return { symbole: '💰', label: 'Abordable' };
+  if (parPersonne < 60) return { symbole: '💰💰', label: 'Moyen' };
+  return { symbole: '💰💰💰', label: 'Cher' };
+};
+
 // Options pour l'occasion du repas
 const OCCASIONS = [
   { id: 'romantique', label: '💕 Romantique' },
@@ -145,6 +154,8 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   const [noteAmbiance, setNoteAmbiance] = useState(0);
   const [noteService, setNoteService] = useState(0);
   const [commentaire, setCommentaire] = useState('');
+  const [montantTotal, setMontantTotal] = useState('');
+  const [nombrePersonnes, setNombrePersonnes] = useState('');
   const [erreurEnregistrement, setErreurEnregistrement] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [uploadEnCours, setUploadEnCours] = useState(false);
@@ -212,6 +223,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
     setNom(''); setCodePays(''); setVille(''); setOccasion(''); setTypeCuisine(''); setCategorie(''); setStatut('teste');
     setNoteNourriture(0); setNoteAmbiance(0); setNoteService(0); setCommentaire('');
     setErreurEnregistrement(''); setPhotoUrl(''); setIdEnEdition(null);
+    setMontantTotal(''); setNombrePersonnes('');
     setShowForm(false);
   };
 
@@ -230,6 +242,8 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
     setNoteService(r.noteService || 0);
     setCommentaire(r.commentaire || '');
     setPhotoUrl(r.photoUrl || '');
+    setMontantTotal(r.montantTotal ? String(r.montantTotal) : '');
+    setNombrePersonnes(r.nombrePersonnes ? String(r.nombrePersonnes) : '');
     setIdEnEdition(r.id);
     setShowForm(true);
   };
@@ -246,6 +260,13 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   const moyenneEnCours = (() => {
     const notes = [noteNourriture, noteAmbiance, noteService].filter((n) => n > 0);
     return notes.length > 0 ? notes.reduce((a, b) => a + b, 0) / notes.length : 0;
+  })();
+
+  const prixParPersonneEnCours = (() => {
+    const total = parseFloat(montantTotal);
+    const pers = parseFloat(nombrePersonnes);
+    if (!total || !pers || pers <= 0) return null;
+    return total / pers;
   })();
 
   // Photo du plat — envoyée sur Firebase Storage (même principe que les
@@ -317,6 +338,9 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
         noteAmbiance: estEnvie ? 0 : noteAmbiance,
         noteService: estEnvie ? 0 : noteService,
         moyenne: estEnvie ? 0 : moyenneEnCours,
+        montantTotal: montantTotal ? parseFloat(montantTotal) : null,
+        nombrePersonnes: nombrePersonnes ? parseInt(nombrePersonnes, 10) : null,
+        prixParPersonne: prixParPersonneEnCours,
         commentaire: commentaire.trim() || null,
         ajouteParNom: monNom
       };
@@ -383,6 +407,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   // --- Classement (vue "top to bottom", filtrable par continent) ---
   const [vueMode, setVueMode] = useState('regions'); // 'regions' | 'classement' | 'envies' | 'carte'
   const [filtreContinent, setFiltreContinent] = useState('');
+  const [filtreCuisineEnvie, setFiltreCuisineEnvie] = useState('');
   const continentsDisponibles = [...new Set(restosFiltres.map((r) => r.continent).filter(Boolean))].sort();
 
   const classement = [...restosFiltres]
@@ -671,6 +696,27 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                   </div>
                 )}
 
+                {/* Prix payé */}
+                <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Prix payé (optionnel)</p>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: prixParPersonneEnCours != null ? '10px' : '16px' }}>
+                  <input
+                    type="number" step="0.01" placeholder="Montant total"
+                    value={montantTotal} onChange={(e) => setMontantTotal(e.target.value)}
+                    style={{ flex: 2, minWidth: 0, padding: '13px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                  <input
+                    type="number" min="1" placeholder="Nb pers."
+                    value={nombrePersonnes} onChange={(e) => setNombrePersonnes(e.target.value)}
+                    style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                </div>
+                {prixParPersonneEnCours != null && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#F7F1E8', borderRadius: '12px', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#8A7B68' }}>≈ {prixParPersonneEnCours.toFixed(2)} / personne</span>
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#2B2420' }}>{classifierPrix(prixParPersonneEnCours)?.symbole} {classifierPrix(prixParPersonneEnCours)?.label}</span>
+                  </div>
+                )}
+
                 {/* Photo du plat */}
                 <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Photo (optionnel)</p>
                 {photoUrl ? (
@@ -791,6 +837,11 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                             <span style={{ fontSize: '11px', color: '#8A7B68' }}>🍽️ {r.noteNourriture || 0}/10</span>
                             <span style={{ fontSize: '11px', color: '#8A7B68' }}>✨ {r.noteAmbiance || 0}/10</span>
                             <span style={{ fontSize: '11px', color: '#8A7B68' }}>🙋 {r.noteService || 0}/10</span>
+                            {r.prixParPersonne != null && (
+                              <span style={{ fontSize: '11px', color: '#B8863C', fontWeight: '700', marginLeft: 'auto' }}>
+                                {classifierPrix(r.prixParPersonne)?.symbole} {r.prixParPersonne.toFixed(0)}/pers.
+                              </span>
+                            )}
                           </div>
 
                           {r.commentaire && (
@@ -875,35 +926,57 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
               <p style={{ color: '#8A7B68', fontSize: '13.5px', margin: 0 }}>Aucune envie notée — ajoute une adresse recommandée avant même d'y être allée !</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {envies.map((r) => (
-                <div key={r.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px dashed #E8DFCF', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '14.5px', fontWeight: '800', color: '#2B2420' }}>{r.nom}</p>
-                    {(r.ville || r.pays) && (
-                      <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#8A7B68' }}>{[r.ville, r.pays].filter(Boolean).join(', ')}</p>
-                    )}
-                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '5px' }}>
-                      {r.typeCuisine && (
-                        <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#6E8AA6', backgroundColor: '#EEF2F0', padding: '3px 9px', borderRadius: '999px' }}>
-                          {trouverCuisine(r.typeCuisine)?.label || r.typeCuisine}
-                        </span>
-                      )}
-                    </div>
-                    {r.commentaire && <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#8A7B68' }}>{r.commentaire}</p>}
-                  </div>
+            <div>
+              {[...new Set(envies.map((r) => r.typeCuisine).filter(Boolean))].length > 0 && (
+                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '14px', paddingBottom: '2px' }}>
                   <button
-                    onClick={() => commencerConversionEnvie(r)}
-                    title="Marquer comme testé"
-                    style={{ border: 'none', backgroundColor: '#10B981', color: '#FFF', width: '34px', height: '34px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    onClick={() => setFiltreCuisineEnvie('')}
+                    style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCuisineEnvie ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: !filtreCuisineEnvie ? '#FBF3E3' : '#FFFFFF', color: !filtreCuisineEnvie ? '#B8863C' : '#64748B' }}
                   >
-                    <IconCheck size={17} />
+                    Toutes
                   </button>
-                  <button onClick={() => supprimerResto(r)} style={{ border: 'none', background: 'none', color: '#D9CDB8', cursor: 'pointer', padding: '4px', flexShrink: 0 }}>
-                    <IconTrash size={15} />
-                  </button>
+                  {[...new Set(envies.map((r) => r.typeCuisine).filter(Boolean))].map((cid) => (
+                    <button
+                      key={cid}
+                      onClick={() => setFiltreCuisineEnvie(filtreCuisineEnvie === cid ? '' : cid)}
+                      style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCuisineEnvie === cid ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: filtreCuisineEnvie === cid ? '#FBF3E3' : '#FFFFFF', color: filtreCuisineEnvie === cid ? '#B8863C' : '#64748B' }}
+                    >
+                      {trouverCuisine(cid)?.label || cid}
+                    </button>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {envies.filter((r) => !filtreCuisineEnvie || r.typeCuisine === filtreCuisineEnvie).map((r) => (
+                  <div key={r.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px dashed #E8DFCF', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '14.5px', fontWeight: '800', color: '#2B2420' }}>{r.nom}</p>
+                      {(r.ville || r.pays) && (
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#8A7B68' }}>{[r.ville, r.pays].filter(Boolean).join(', ')}</p>
+                      )}
+                      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '5px' }}>
+                        {r.typeCuisine && (
+                          <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#6E8AA6', backgroundColor: '#EEF2F0', padding: '3px 9px', borderRadius: '999px' }}>
+                            {trouverCuisine(r.typeCuisine)?.label || r.typeCuisine}
+                          </span>
+                        )}
+                      </div>
+                      {r.commentaire && <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#8A7B68' }}>{r.commentaire}</p>}
+                    </div>
+                    <button
+                      onClick={() => commencerConversionEnvie(r)}
+                      title="Marquer comme testé"
+                      style={{ border: 'none', backgroundColor: '#10B981', color: '#FFF', width: '34px', height: '34px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    >
+                      <IconCheck size={17} />
+                    </button>
+                    <button onClick={() => supprimerResto(r)} style={{ border: 'none', background: 'none', color: '#D9CDB8', cursor: 'pointer', padding: '4px', flexShrink: 0 }}>
+                      <IconTrash size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )
         )}
