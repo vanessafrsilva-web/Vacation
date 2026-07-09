@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import {
   IconArrowLeft, IconPlus, IconTrash, IconToolsKitchen2, IconUsers, IconX,
   IconSearch, IconStar, IconAlertTriangle, IconShare, IconTrophy, IconHeart,
-  IconCamera, IconCheck, IconMapPin
+  IconCamera, IconCheck, IconMapPin, IconPencil
 } from '@tabler/icons-react';
 
 // Types de cuisine proposés (pour se souvenir "c'était quel genre ?" au partage)
@@ -91,6 +91,14 @@ const PAYS = [
 
 const trouverPays = (code) => PAYS.find((p) => p.code === code);
 
+// Catégorie du lieu (famille) — distincte du type de cuisine
+const CATEGORIES = [
+  { id: 'restaurant', label: '🍽️ Restaurant' },
+  { id: 'brunch', label: '🥞 Brunch' },
+  { id: 'coffee', label: '☕ Coffee Shop' }
+];
+const trouverCategorie = (id) => CATEGORIES.find((c) => c.id === id);
+
 // Options pour l'occasion du repas
 const OCCASIONS = [
   { id: 'romantique', label: '💕 Romantique' },
@@ -131,6 +139,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   const [ville, setVille] = useState('');
   const [occasion, setOccasion] = useState('');
   const [typeCuisine, setTypeCuisine] = useState('');
+  const [categorie, setCategorie] = useState('');
   const [statut, setStatut] = useState('teste'); // 'teste' ou 'envie'
   const [noteNourriture, setNoteNourriture] = useState(0);
   const [noteAmbiance, setNoteAmbiance] = useState(0);
@@ -200,18 +209,37 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   };
 
   const resetForm = () => {
-    setNom(''); setCodePays(''); setVille(''); setOccasion(''); setTypeCuisine(''); setStatut('teste');
+    setNom(''); setCodePays(''); setVille(''); setOccasion(''); setTypeCuisine(''); setCategorie(''); setStatut('teste');
     setNoteNourriture(0); setNoteAmbiance(0); setNoteService(0); setCommentaire('');
     setErreurEnregistrement(''); setPhotoUrl(''); setIdEnEdition(null);
     setShowForm(false);
   };
 
-  const commencerConversionEnvie = (r) => {
-    setNom(r.nom); setCodePays(PAYS.find((p) => p.nom === r.pays)?.code || ''); setVille(r.ville || '');
-    setOccasion(r.occasion || ''); setTypeCuisine(r.typeCuisine || ''); setStatut('teste');
-    setNoteNourriture(0); setNoteAmbiance(0); setNoteService(0); setCommentaire(r.commentaire || '');
-    setPhotoUrl(r.photoUrl || ''); setIdEnEdition(r.id);
+  // Ouvre le formulaire pré-rempli avec les données existantes — utilisé
+  // pour modifier un resto déjà noté (notes, cuisine, catégorie, photo...).
+  const commencerEdition = (r) => {
+    setNom(r.nom);
+    setCodePays(PAYS.find((p) => p.nom === r.pays)?.code || '');
+    setVille(r.ville || '');
+    setOccasion(r.occasion || '');
+    setTypeCuisine(r.typeCuisine || '');
+    setCategorie(r.categorie || '');
+    setStatut(r.statut || 'teste');
+    setNoteNourriture(r.noteNourriture || 0);
+    setNoteAmbiance(r.noteAmbiance || 0);
+    setNoteService(r.noteService || 0);
+    setCommentaire(r.commentaire || '');
+    setPhotoUrl(r.photoUrl || '');
+    setIdEnEdition(r.id);
     setShowForm(true);
+  };
+
+  // Cas particulier : transformer une "envie" en resto testé (mêmes champs,
+  // mais on force le statut et on repart de notes vierges à remplir).
+  const commencerConversionEnvie = (r) => {
+    commencerEdition(r);
+    setStatut('teste');
+    setNoteNourriture(0); setNoteAmbiance(0); setNoteService(0);
   };
 
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
@@ -281,6 +309,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
         continent: paysChoisi?.continent || null,
         occasion: occasion || null,
         typeCuisine: typeCuisine || null,
+        categorie: categorie || null,
         statut,
         photoUrl: photoUrl || null,
         lat, lon,
@@ -584,16 +613,28 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
               />
             </div>
 
-            <select
-              value={typeCuisine}
-              onChange={(e) => setTypeCuisine(e.target.value)}
-              style={{ width: '100%', padding: '13px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: typeCuisine ? '#2B2420' : '#B5A793', marginBottom: '16px' }}
-            >
-              <option value="">Type de cuisine...</option>
-              {CUISINES.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <select
+                value={categorie}
+                onChange={(e) => setCategorie(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: categorie ? '#2B2420' : '#B5A793' }}
+              >
+                <option value="">Catégorie...</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+              <select
+                value={typeCuisine}
+                onChange={(e) => setTypeCuisine(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: '12px', border: '1px solid #E8DFCF', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: typeCuisine ? '#2B2420' : '#B5A793' }}
+              >
+                <option value="">Type de cuisine...</option>
+                {CUISINES.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+            </div>
 
             <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Occasion</p>
             <div style={{ display: 'flex', gap: '6px', marginBottom: '18px', flexWrap: 'wrap' }}>
@@ -667,7 +708,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="button" onClick={resetForm} style={{ flex: 1, padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#F7F1E8', color: '#2B2420', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
               <button type="submit" disabled={enregistrementEnCours} style={{ flex: 2, padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', cursor: enregistrementEnCours ? 'default' : 'pointer', opacity: enregistrementEnCours ? 0.7 : 1, fontFamily: 'inherit' }}>
-                {enregistrementEnCours ? 'Enregistrement...' : 'Enregistrer'}
+                {enregistrementEnCours ? 'Enregistrement...' : (idEnEdition ? 'Enregistrer les modifications' : 'Enregistrer')}
               </button>
             </div>
           </form>
@@ -715,6 +756,11 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                                 </p>
                               )}
                               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '5px' }}>
+                                {r.categorie && (
+                                  <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#B97490', backgroundColor: '#F8EFF2', padding: '3px 9px', borderRadius: '999px' }}>
+                                    {trouverCategorie(r.categorie)?.label || r.categorie}
+                                  </span>
+                                )}
                                 {r.typeCuisine && (
                                   <span style={{ fontSize: '10.5px', fontWeight: '700', color: '#6E8AA6', backgroundColor: '#EEF2F0', padding: '3px 9px', borderRadius: '999px' }}>
                                     {trouverCuisine(r.typeCuisine)?.label || r.typeCuisine}
@@ -732,6 +778,9 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                                 <IconStar size={13} color="#B8863C" fill="#B8863C" />
                                 <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne?.toFixed(1) || '—'}</span>
                               </div>
+                              <button onClick={() => commencerEdition(r)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '2px' }}>
+                                <IconPencil size={15} />
+                              </button>
                               <button onClick={() => supprimerResto(r)} style={{ border: 'none', background: 'none', color: '#D9CDB8', cursor: 'pointer', padding: '2px' }}>
                                 <IconTrash size={15} />
                               </button>
@@ -792,8 +841,9 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                 {classement.map((r, i) => (
                   <div
                     key={r.id}
+                    onClick={() => commencerEdition(r)}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '12px', padding: '13px 15px',
+                      display: 'flex', alignItems: 'center', gap: '12px', padding: '13px 15px', cursor: 'pointer',
                       backgroundColor: i < 3 ? '#FBF3E3' : '#FFFFFF',
                       border: i < 3 ? '1.5px solid #E8CBA0' : '1px solid #E8DFCF',
                       borderRadius: '16px'
