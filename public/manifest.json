@@ -1,6 +1,6 @@
 {
-  "name": "Nomade by Vanessa",
-  "short_name": "Nomade",
+  "name": "Les Nomades by Vanessa",
+  "short_name": "Les Nomades",
   "description": "Carnet de route interactif pour planifier vos voyages",
   "start_url": "/",
   "display": "standalone",

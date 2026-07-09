@@ -52,6 +52,8 @@ export function Auth() {
     }
   };
 
+  const AVATARS_PAR_DEFAUT = ['🦊', '🐼', '🐨', '🦁', '🐯', '🐸', '🐢', '🦉', '🐝', '🦄', '🐙', '🦋', '🐧', '🦖', '🐺', '🦜'];
+
   const handleSignup = async (e) => {
     e.preventDefault();
     setErreur('');
@@ -63,7 +65,8 @@ export function Auth() {
     setChargement(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), motDePasse);
-      await updateProfile(cred.user, { displayName: nomComplet.trim() });
+      const avatarAleatoire = AVATARS_PAR_DEFAUT[Math.floor(Math.random() * AVATARS_PAR_DEFAUT.length)];
+      await updateProfile(cred.user, { displayName: nomComplet.trim(), photoURL: avatarAleatoire });
     } catch (error) {
       setErreur(messageErreur(error.code));
     } finally {
@@ -101,7 +104,7 @@ export function Auth() {
 
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1 style={{ margin: 0, fontSize: '32px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>NOMADE</h1>
+          <h1 style={{ margin: 0, fontSize: '32px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>LES NOMADES</h1>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#B8863C', fontWeight: '700', letterSpacing: '1px' }}>by Vanessa</p>
         </div>
 
