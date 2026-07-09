@@ -9,6 +9,66 @@ import {
   IconSearch, IconStar
 } from '@tabler/icons-react';
 
+// Continent associé à chaque pays (nom tel que renvoyé par Nominatim en
+// français). Sert uniquement à regrouper l'affichage — reste volontairement
+// large plutôt qu'exhaustif, avec un repli "Autre" si le pays n'y figure pas.
+const CONTINENT_PAR_PAYS = {
+  'France': 'Europe', 'Portugal': 'Europe', 'Espagne': 'Europe', 'Italie': 'Europe',
+  'Royaume-Uni': 'Europe', 'Irlande': 'Europe', 'Allemagne': 'Europe', 'Autriche': 'Europe',
+  'Suisse': 'Europe', 'Belgique': 'Europe', 'Pays-Bas': 'Europe', 'Luxembourg': 'Europe',
+  'Danemark': 'Europe', 'Norvège': 'Europe', 'Suède': 'Europe', 'Finlande': 'Europe',
+  'Islande': 'Europe', 'Pologne': 'Europe', 'Tchéquie': 'Europe', 'République tchèque': 'Europe',
+  'Slovaquie': 'Europe', 'Hongrie': 'Europe', 'Roumanie': 'Europe', 'Bulgarie': 'Europe',
+  'Grèce': 'Europe', 'Croatie': 'Europe', 'Slovénie': 'Europe', 'Serbie': 'Europe',
+  'Bosnie-Herzégovine': 'Europe', 'Monténégro': 'Europe', 'Macédoine du Nord': 'Europe',
+  'Albanie': 'Europe', 'Ukraine': 'Europe', 'Biélorussie': 'Europe', 'Moldavie': 'Europe',
+  'Lituanie': 'Europe', 'Lettonie': 'Europe', 'Estonie': 'Europe', 'Malte': 'Europe',
+  'Chypre': 'Europe', 'Monaco': 'Europe', 'Andorre': 'Europe', 'Saint-Marin': 'Europe',
+  'Liechtenstein': 'Europe', 'Cité du Vatican': 'Europe', 'Kosovo': 'Europe', 'Russie': 'Europe',
+
+  'États-Unis': 'Amérique du Nord', 'Canada': 'Amérique du Nord', 'Mexique': 'Amérique du Nord',
+
+  'Brésil': 'Amérique du Sud', 'Argentine': 'Amérique du Sud', 'Chili': 'Amérique du Sud',
+  'Pérou': 'Amérique du Sud', 'Colombie': 'Amérique du Sud', 'Équateur': 'Amérique du Sud',
+  'Bolivie': 'Amérique du Sud', 'Uruguay': 'Amérique du Sud', 'Paraguay': 'Amérique du Sud',
+  'Venezuela': 'Amérique du Sud',
+
+  'Maroc': 'Afrique', 'Tunisie': 'Afrique', 'Algérie': 'Afrique', 'Égypte': 'Afrique',
+  'Sénégal': 'Afrique', 'Afrique du Sud': 'Afrique', 'Kenya': 'Afrique', 'Tanzanie': 'Afrique',
+  'Maroc ': 'Afrique', 'Île Maurice': 'Afrique', 'Madagascar': 'Afrique', 'Cap-Vert': 'Afrique',
+  'Namibie': 'Afrique', 'Ghana': 'Afrique', 'Éthiopie': 'Afrique',
+
+  'Japon': 'Asie', 'Chine': 'Asie', 'Thaïlande': 'Asie', 'Vietnam': 'Asie', 'Corée du Sud': 'Asie',
+  'Indonésie': 'Asie', 'Inde': 'Asie', 'Malaisie': 'Asie', 'Singapour': 'Asie', 'Philippines': 'Asie',
+  'Cambodge': 'Asie', 'Laos': 'Asie', 'Népal': 'Asie', 'Sri Lanka': 'Asie', 'Taïwan': 'Asie',
+  'Turquie': 'Asie', 'Géorgie': 'Asie', 'Arménie': 'Asie',
+
+  'Émirats arabes unis': 'Moyen-Orient', 'Israël': 'Moyen-Orient', 'Jordanie': 'Moyen-Orient',
+  'Liban': 'Moyen-Orient', 'Qatar': 'Moyen-Orient', 'Arabie saoudite': 'Moyen-Orient', 'Oman': 'Moyen-Orient',
+
+  'Australie': 'Océanie', 'Nouvelle-Zélande': 'Océanie', 'Fidji': 'Océanie'
+};
+
+// Cherche le pays correspondant à un texte de lieu libre (ville, adresse...)
+// via Nominatim (OpenStreetMap, gratuit, sans clé), pour pouvoir regrouper
+// automatiquement le carnet par continent puis par pays.
+const chercherPaysEtContinent = async (lieuTexte) => {
+  if (!lieuTexte || !lieuTexte.trim()) return { pays: null, continent: null };
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(lieuTexte)}&addressdetails=1&limit=1&accept-language=fr`
+    );
+    if (!res.ok) throw new Error(`Statut ${res.status}`);
+    const data = await res.json();
+    const pays = data?.[0]?.address?.country || null;
+    const continent = pays ? (CONTINENT_PAR_PAYS[pays] || 'Autre') : null;
+    return { pays, continent };
+  } catch (error) {
+    console.warn('Détection du pays impossible.', error);
+    return { pays: null, continent: null };
+  }
+};
+
 // Petit composant réutilisable : 5 étoiles = une note sur 10 (par pas de 2)
 function LigneEtoiles({ label, valeur, onChange }) {
   return (
@@ -107,16 +167,21 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
     setShowForm(false);
   };
 
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+
   const ajouterResto = async (e) => {
     e.preventDefault();
     if (!nom.trim()) return;
     const notes = [noteNourriture, noteAmbiance, noteService].filter((n) => n > 0);
     const moyenne = notes.length > 0 ? notes.reduce((a, b) => a + b, 0) / notes.length : 0;
 
+    setEnregistrementEnCours(true);
     try {
+      const { pays, continent } = await chercherPaysEtContinent(lieu);
       await addDoc(collection(db, 'restos'), {
         nom: nom.trim(),
         lieu: lieu.trim() || null,
+        pays, continent,
         noteNourriture, noteAmbiance, noteService,
         moyenne,
         commentaire: commentaire.trim() || null,
@@ -128,6 +193,8 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
       resetForm();
     } catch (error) {
       console.error("Erreur d'ajout :", error);
+    } finally {
+      setEnregistrementEnCours(false);
     }
   };
 
@@ -140,6 +207,23 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   const restosFiltres = restos.filter((r) => {
     const texte = `${r.nom} ${r.lieu || ''}`.toLowerCase();
     return texte.includes(recherche.toLowerCase());
+  });
+
+  // Regroupement Continent → Pays, chaque groupe trié par note décroissante.
+  // Les entrées sans pays détecté (ancien resto, géolocalisation ratée...)
+  // atterrissent dans "Non classé" plutôt que de disparaître.
+  const groupes = {};
+  restosFiltres.forEach((r) => {
+    const continent = r.continent || 'Non classé';
+    const pays = r.pays || 'Non classé';
+    if (!groupes[continent]) groupes[continent] = {};
+    if (!groupes[continent][pays]) groupes[continent][pays] = [];
+    groupes[continent][pays].push(r);
+  });
+  const continentsTries = Object.keys(groupes).sort((a, b) => {
+    if (a === 'Non classé') return 1;
+    if (b === 'Non classé') return -1;
+    return a.localeCompare(b);
   });
 
   return (
@@ -237,7 +321,9 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="button" onClick={resetForm} style={{ flex: 1, padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#F7F1E8', color: '#2B2420', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
-              <button type="submit" style={{ flex: 2, padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit' }}>Enregistrer</button>
+              <button type="submit" disabled={enregistrementEnCours} style={{ flex: 2, padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', cursor: enregistrementEnCours ? 'default' : 'pointer', opacity: enregistrementEnCours ? 0.7 : 1, fontFamily: 'inherit' }}>
+                {enregistrementEnCours ? 'Localisation...' : 'Enregistrer'}
+              </button>
             </div>
           </form>
         )}
@@ -252,37 +338,57 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
         )}
 
         {!showForm && restosFiltres.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {restosFiltres.map((r) => (
-              <div key={r.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E8DFCF', padding: '14px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '15.5px', fontWeight: '800', color: '#2B2420' }}>{r.nom}</p>
-                    {r.lieu && <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#8A7B68' }}>{r.lieu}</p>}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#FBF3E3', padding: '4px 10px', borderRadius: '999px' }}>
-                      <IconStar size={13} color="#B8863C" fill="#B8863C" />
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne?.toFixed(1) || '—'}</span>
+          <div>
+            {continentsTries.map((continent) => (
+              <div key={continent} style={{ marginBottom: '22px' }}>
+                <p style={{ margin: '0 0 10px 2px', fontSize: '13px', fontWeight: '800', color: '#B8863C', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  🌍 {continent}
+                </p>
+                {Object.keys(groupes[continent]).sort((a, b) => {
+                  if (a === 'Non classé') return 1;
+                  if (b === 'Non classé') return -1;
+                  return a.localeCompare(b);
+                }).map((pays) => (
+                  <div key={pays} style={{ marginBottom: '16px' }}>
+                    <p style={{ margin: '0 0 8px 6px', fontSize: '12.5px', fontWeight: '700', color: '#8A7B68' }}>{pays}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {groupes[continent][pays]
+                        .sort((a, b) => (b.moyenne || 0) - (a.moyenne || 0))
+                        .map((r) => (
+                        <div key={r.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E8DFCF', padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ margin: 0, fontSize: '15.5px', fontWeight: '800', color: '#2B2420' }}>{r.nom}</p>
+                              {r.lieu && <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#8A7B68' }}>{r.lieu}</p>}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#FBF3E3', padding: '4px 10px', borderRadius: '999px' }}>
+                                <IconStar size={13} color="#B8863C" fill="#B8863C" />
+                                <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne?.toFixed(1) || '—'}</span>
+                              </div>
+                              <button onClick={() => supprimerResto(r.id)} style={{ border: 'none', background: 'none', color: '#D9CDB8', cursor: 'pointer', padding: '2px' }}>
+                                <IconTrash size={15} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
+                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>🍽️ {r.noteNourriture || 0}/10</span>
+                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>✨ {r.noteAmbiance || 0}/10</span>
+                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>🙋 {r.noteService || 0}/10</span>
+                          </div>
+
+                          {r.commentaire && (
+                            <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#2B2420', backgroundColor: '#F7F1E8', padding: '8px 10px', borderRadius: '10px', lineHeight: '1.5' }}>
+                              {r.commentaire}
+                            </p>
+                          )}
+                          <p style={{ margin: '8px 0 0 0', fontSize: '10.5px', color: '#D9CDB8' }}>Ajouté par {r.ajouteParNom}</p>
+                        </div>
+                      ))}
                     </div>
-                    <button onClick={() => supprimerResto(r.id)} style={{ border: 'none', background: 'none', color: '#D9CDB8', cursor: 'pointer', padding: '2px' }}>
-                      <IconTrash size={15} />
-                    </button>
                   </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
-                  <span style={{ fontSize: '11px', color: '#8A7B68' }}>🍽️ {r.noteNourriture || 0}/10</span>
-                  <span style={{ fontSize: '11px', color: '#8A7B68' }}>✨ {r.noteAmbiance || 0}/10</span>
-                  <span style={{ fontSize: '11px', color: '#8A7B68' }}>🙋 {r.noteService || 0}/10</span>
-                </div>
-
-                {r.commentaire && (
-                  <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#2B2420', backgroundColor: '#F7F1E8', padding: '8px 10px', borderRadius: '10px', lineHeight: '1.5' }}>
-                    {r.commentaire}
-                  </p>
-                )}
-                <p style={{ margin: '8px 0 0 0', fontSize: '10.5px', color: '#D9CDB8' }}>Ajouté par {r.ajouteParNom}</p>
+                ))}
               </div>
             ))}
           </div>
