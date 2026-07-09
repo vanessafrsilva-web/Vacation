@@ -57,7 +57,7 @@ function App() {
   const [utilisateur, setUtilisateur] = useState(undefined);
   const [showProfil, setShowProfil] = useState(false);
   const [showCarnet, setShowCarnet] = useState(false);
-  const [showRestos, setShowRestos] = useState(false);
+  const [moduleActif, setModuleActif] = useState(null); // null = accueil, 'voyages', 'restos'
   const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
   useEffect(() => {
@@ -534,6 +534,12 @@ function App() {
             <span style={{ fontSize: '13px', color: '#8A7B68' }}>{monNom}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <button
+                onClick={() => setModuleActif(null)}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+              >
+                <IconHome size={14} /> Accueil
+              </button>
+              <button
                 onClick={() => setShowCarnet(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
               >
@@ -552,24 +558,6 @@ function App() {
                 <IconLogout size={14} /> Déconnexion
               </button>
             </div>
-          </div>
-
-          {/* Carnet gastronomique — module indépendant des voyages */}
-          <div
-            onClick={() => setShowRestos(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 18px',
-              backgroundColor: '#2B2420', borderRadius: '18px', marginBottom: '22px', cursor: 'pointer'
-            }}
-          >
-            <div style={{ backgroundColor: 'rgba(184,134,60,0.25)', color: '#B8863C', padding: '10px', borderRadius: '13px', display: 'flex' }}>
-              <IconToolsKitchen2 size={22} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '15px', fontWeight: '800', color: '#FFFFFF' }}>Mes Restos</div>
-              <div style={{ fontSize: '12px', color: '#D9CDB8' }}>Ton carnet gastronomique, partout dans le monde</div>
-            </div>
-            <IconArrowRight size={18} color="#D9CDB8" />
           </div>
 
           {/* Formulaire de création (Style Light Premium) */}
@@ -1053,11 +1041,68 @@ function App() {
     return <CarnetGlobal voyages={voyages} onClose={() => setShowCarnet(false)} />;
   }
 
-  if (showRestos) {
-    return <MesRestos utilisateur={utilisateur} monNom={monNom} onClose={() => setShowRestos(false)} />;
+  if (moduleActif === 'restos') {
+    return <MesRestos utilisateur={utilisateur} monNom={monNom} onClose={() => setModuleActif(null)} />;
   }
 
-  // --- RENDU GLOBAL (STRUCTURE DE L'APP CLAIRE) ---
+  // --- ÉCRAN D'ACCUEIL : choix entre les deux modules ---
+  if (moduleActif === null) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif", display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px' }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap');`}</style>
+
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#8A7B68', fontWeight: '600' }}>Bonjour {monNom}</p>
+          <h1 style={{ margin: 0, fontSize: '30px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Nomade</h1>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '440px', margin: '0 auto', width: '100%' }}>
+          <div
+            onClick={() => setModuleActif('voyages')}
+            style={{
+              backgroundColor: '#2B2420', borderRadius: '22px', padding: '28px 26px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+            }}
+          >
+            <div style={{ backgroundColor: 'rgba(184,134,60,0.22)', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+              <IconPlaneDeparture size={30} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '19px', fontWeight: '800', color: '#FFFFFF', fontFamily: "'Playfair Display', Georgia, serif" }}>Planning Voyages</div>
+              <div style={{ fontSize: '12.5px', color: '#D9CDB8', marginTop: '3px' }}>Tes roadtrips, checklists, budgets et itinéraires</div>
+            </div>
+            <IconArrowRight size={20} color="#D9CDB8" />
+          </div>
+
+          <div
+            onClick={() => setModuleActif('restos')}
+            style={{
+              backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+            }}
+          >
+            <div style={{ backgroundColor: '#FBF3E3', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+              <IconToolsKitchen2 size={30} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Papilles Nomades</div>
+              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Ton carnet de restos, partout dans le monde</div>
+            </div>
+            <IconArrowRight size={20} color="#B5A793" />
+          </div>
+        </div>
+
+        <button
+          onClick={() => signOut(auth)}
+          style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#B5A793', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', margin: '32px auto 0 auto', padding: 0 }}
+        >
+          <IconLogout size={13} /> Déconnexion
+        </button>
+      </div>
+    );
+  }
+
+  // --- RENDU GLOBAL (STRUCTURE DE L'APP CLAIRE) — module "Planning Voyages" ---
   return (
     <div style={{ paddingBottom: '80px', minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif" }}> 
       <style>{`
