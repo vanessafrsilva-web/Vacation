@@ -10,16 +10,17 @@ import { FicheUrgence } from './components/FicheUrgence';
 import { Historique } from './components/Historique';
 import { Aujourdhui } from './components/Aujourdhui';
 import { CarnetGlobal } from './components/CarnetGlobal';
+import { MesRestos } from './components/MesRestos';
 import { Planning } from './components/Planning';
 import { Checklist } from './components/Checklist';
 import { Budget } from './components/Budget';
 import { db, auth } from './firebase';
-import { collection, addDoc, onSnapshot, query, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, arrayUnion, arrayRemove, enableNetwork, disableNetwork } from 'firebase/firestore';
 import { onAuthStateChanged, signOut, fetchSignInMethodsForEmail } from 'firebase/auth';
 import emailjs from '@emailjs/browser';
 import { Auth } from './components/Auth';
 import { Profil } from './components/Profil';
-import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook } from '@tabler/icons-react';
+import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2 } from '@tabler/icons-react';
 
 function App() {
   const [appDemarree, setAppDemarree] = useState(false);
@@ -56,11 +57,39 @@ function App() {
   const [utilisateur, setUtilisateur] = useState(undefined);
   const [showProfil, setShowProfil] = useState(false);
   const [showCarnet, setShowCarnet] = useState(false);
+  const [showRestos, setShowRestos] = useState(false);
   const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => setUtilisateur(u));
     return () => unsubscribe();
+  }, []);
+
+  // Sur iPhone (surtout en PWA "Sur l'écran d'accueil"), iOS coupe la
+  // connexion temps réel de Firestore quand l'app passe en arrière-plan,
+  // et elle ne se rétablit pas toujours toute seule au retour — l'app
+  // affichait alors de vieilles données jusqu'à un vrai rechargement complet.
+  // On force ici une reconnexion propre à chaque retour au premier plan.
+  useEffect(() => {
+    let enCours = false;
+    const reconnecter = async () => {
+      if (document.visibilityState !== 'visible' || enCours) return;
+      enCours = true;
+      try {
+        await disableNetwork(db);
+        await enableNetwork(db);
+      } catch (error) {
+        console.warn('Reconnexion Firestore impossible.', error);
+      } finally {
+        enCours = false;
+      }
+    };
+    document.addEventListener('visibilitychange', reconnecter);
+    window.addEventListener('focus', reconnecter);
+    return () => {
+      document.removeEventListener('visibilitychange', reconnecter);
+      window.removeEventListener('focus', reconnecter);
+    };
   }, []);
 
   // Sans ça, la page peut rester scrollée là où était le formulaire de
@@ -159,31 +188,52 @@ function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownRef]);
 
-  // Chargement des VRAIS voyages depuis Firebase — uniquement une fois la
-  // connexion confirmée (sinon Firestore refuse l'accès et l'écoute reste
-  // bloquée pour le reste de la session, même après connexion).
+  // Chargement des VRAIS voyages depuis Firebase — uniquement ceux dont on
+  // est propriétaire, OU ceux où on a été invité par email. Deux écoutes
+  // séparées (Firestore ne permet pas ce genre de "OU" en une seule requête),
+  // fusionnées ensuite. Uniquement une fois la connexion confirmée.
   useEffect(() => {
     if (!utilisateur) {
       setVoyages([]);
       return;
     }
-    const q = query(collection(db, 'voyages'));
-    const unsubscribe = onSnapshot(
-      q,
+
+    const voyagesProprio = new Map();
+    const voyagesInvite = new Map();
+
+    const fusionnerEtPublier = () => {
+      const fusion = new Map([...voyagesProprio, ...voyagesInvite]);
+      const voyagesData = Array.from(fusion.values());
+      voyagesData.sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
+      setVoyages(voyagesData);
+    };
+
+    const qProprio = query(collection(db, 'voyages'), where('proprietaireId', '==', utilisateur.uid));
+    const unsubProprio = onSnapshot(
+      qProprio,
       (snapshot) => {
-        const voyagesData = [];
-        snapshot.forEach((doc) => {
-          voyagesData.push({ id: doc.id, ...doc.data() });
-        });
-        // Tri du plus proche au plus lointain
-        voyagesData.sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
-        setVoyages(voyagesData);
+        voyagesProprio.clear();
+        snapshot.forEach((doc) => voyagesProprio.set(doc.id, { id: doc.id, ...doc.data() }));
+        fusionnerEtPublier();
       },
-      (error) => {
-        console.error("Erreur de chargement des voyages :", error);
-      }
+      (error) => console.error("Erreur de chargement des voyages (propriétaire) :", error)
     );
-    return () => unsubscribe();
+
+    let unsubInvite = () => {};
+    if (utilisateur.email) {
+      const qInvite = query(collection(db, 'voyages'), where('emailsAutorises', 'array-contains', utilisateur.email));
+      unsubInvite = onSnapshot(
+        qInvite,
+        (snapshot) => {
+          voyagesInvite.clear();
+          snapshot.forEach((doc) => voyagesInvite.set(doc.id, { id: doc.id, ...doc.data() }));
+          fusionnerEtPublier();
+        },
+        (error) => console.error("Erreur de chargement des voyages (invité) :", error)
+      );
+    }
+
+    return () => { unsubProprio(); unsubInvite(); };
   }, [utilisateur]);
 
   const handleAddDestinationField = () => {
@@ -315,6 +365,13 @@ function App() {
       ...voyageursACreer
     ];
 
+    // Liste des emails autorisés à voir ce voyage — toi (le propriétaire)
+    // et toute personne invitée par email dès la création.
+    const emailsAutorisesInitiaux = [
+      utilisateur?.email,
+      ...voyageursACreer.filter((v) => v.email).map((v) => v.email)
+    ].filter(Boolean);
+
     try {
       const docRef = await addDoc(collection(db, 'voyages'), { 
         nom: nouveauVoyageNom,
@@ -325,7 +382,8 @@ function App() {
         destinations: isMultiDest ? destinations : [],
         imageBg: imageAEnregistrer || null,
         voyageurs: voyageursInitiaux,
-        proprietaireId: utilisateur?.uid || null
+        proprietaireId: utilisateur?.uid || null,
+        emailsAutorises: emailsAutorisesInitiaux
       });
       
       setVoyageActif(docRef.id);
@@ -399,7 +457,8 @@ function App() {
 
     try {
       await updateDoc(doc(db, 'voyages', voyage.id), {
-        voyageurs: [...listeActuelle, nouveauVoyageur]
+        voyageurs: [...listeActuelle, nouveauVoyageur],
+        ...(parEmail ? { emailsAutorises: arrayUnion(emailPropre) } : {})
       });
       if (parEmail) {
         envoyerEmailInvitation(emailPropre, nouveauVoyageur.nom, voyage.nom);
@@ -414,9 +473,11 @@ function App() {
   const supprimerVoyageur = async (voyage, idVoyageur) => {
     if (!voyage) return;
     const listeActuelle = voyage.voyageurs || [];
+    const voyageurRetire = listeActuelle.find((p) => p.id === idVoyageur);
     try {
       await updateDoc(doc(db, 'voyages', voyage.id), {
-        voyageurs: listeActuelle.filter((p) => p.id !== idVoyageur)
+        voyageurs: listeActuelle.filter((p) => p.id !== idVoyageur),
+        ...(voyageurRetire?.email ? { emailsAutorises: arrayRemove(voyageurRetire.email) } : {})
       });
     } catch (error) {
       console.error("Erreur lors de la suppression du voyageur :", error);
@@ -491,6 +552,24 @@ function App() {
                 <IconLogout size={14} /> Déconnexion
               </button>
             </div>
+          </div>
+
+          {/* Carnet gastronomique — module indépendant des voyages */}
+          <div
+            onClick={() => setShowRestos(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 18px',
+              backgroundColor: '#2B2420', borderRadius: '18px', marginBottom: '22px', cursor: 'pointer'
+            }}
+          >
+            <div style={{ backgroundColor: 'rgba(184,134,60,0.25)', color: '#B8863C', padding: '10px', borderRadius: '13px', display: 'flex' }}>
+              <IconToolsKitchen2 size={22} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: '#FFFFFF' }}>Mes Restos</div>
+              <div style={{ fontSize: '12px', color: '#D9CDB8' }}>Ton carnet gastronomique, partout dans le monde</div>
+            </div>
+            <IconArrowRight size={18} color="#D9CDB8" />
           </div>
 
           {/* Formulaire de création (Style Light Premium) */}
@@ -972,6 +1051,10 @@ function App() {
 
   if (showCarnet) {
     return <CarnetGlobal voyages={voyages} onClose={() => setShowCarnet(false)} />;
+  }
+
+  if (showRestos) {
+    return <MesRestos utilisateur={utilisateur} monNom={monNom} onClose={() => setShowRestos(false)} />;
   }
 
   // --- RENDU GLOBAL (STRUCTURE DE L'APP CLAIRE) ---
