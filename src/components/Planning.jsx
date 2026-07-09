@@ -341,7 +341,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(8);
       pdf.setTextColor(...GRIS);
-      pdf.text('Nomade by Vanessa', margeGauche, pageH - 9);
+      pdf.text('Les Nomades by Vanessa', margeGauche, pageH - 9);
       pdf.text(`Page ${i} / ${nbPages}`, pageW - margeDroite, pageH - 9, { align: 'right' });
     }
 

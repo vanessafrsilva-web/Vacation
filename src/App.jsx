@@ -865,7 +865,7 @@ function App() {
     }
   };
 
-  // --- SPLASH SCREEN — NOMADE by Vanessa ---
+  // --- SPLASH SCREEN — LES NOMADES by Vanessa ---
   if (!appDemarree) {
     return (
       <div
@@ -950,7 +950,7 @@ function App() {
               letterSpacing: '1px'
             }}
           >
-            NOMADE
+            LES NOMADES
           </h1>
 
           {/* Signature */}
@@ -1053,7 +1053,7 @@ function App() {
 
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#8A7B68', fontWeight: '600' }}>Bonjour {monNom}</p>
-          <h1 style={{ margin: 0, fontSize: '30px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Nomade</h1>
+          <h1 style={{ margin: 0, fontSize: '30px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Les Nomades</h1>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '440px', margin: '0 auto', width: '100%' }}>
