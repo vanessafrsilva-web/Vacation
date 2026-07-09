@@ -1052,6 +1052,11 @@ function App() {
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap');`}</style>
 
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <img
+            src="/icon-512.png"
+            alt="Les Nomades"
+            style={{ width: '84px', height: '84px', borderRadius: '20px', marginBottom: '16px', boxShadow: '0 8px 20px rgba(43,36,32,0.15)' }}
+          />
           <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#8A7B68', fontWeight: '600' }}>Bonjour {monNom}</p>
           <h1 style={{ margin: 0, fontSize: '30px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Les Nomades</h1>
         </div>
