@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../firebase';
 import {
   collection, query, where, onSnapshot, addDoc, deleteDoc, doc, updateDoc,
-  arrayUnion, arrayRemove, setDoc, getDoc, serverTimestamp
+  arrayUnion, arrayRemove, setDoc, getDoc, getDocs, writeBatch, serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import L from 'leaflet';
@@ -206,17 +206,61 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
     });
   }, [utilisateur?.uid]);
 
+  const [partageRetroEnCours, setPartageRetroEnCours] = useState(false);
+
   const ajouterPartage = async () => {
     const email = emailPartage.trim().toLowerCase();
     if (!email) return;
     await setDoc(doc(db, 'parametres', utilisateur.uid), { partageRestosAvec: arrayUnion(email) }, { merge: true });
     setPartages((prev) => [...new Set([...prev, email])]);
     setEmailPartage('');
+
+    // Applique aussi ce partage à toutes les fiches déjà existantes, pas
+    // seulement aux futures — sinon la personne ne verrait rien avant
+    // longtemps. Firestore limite les batchs à 500 écritures ; largement
+    // suffisant ici, mais on découpe quand même par sécurité.
+    setPartageRetroEnCours(true);
+    try {
+      const qMesRestos = query(collection(db, 'restos'), where('proprietaireId', '==', utilisateur.uid));
+      const snap = await getDocs(qMesRestos);
+      const docsRestants = snap.docs.filter((d) => !(d.data().emailsAutorises || []).includes(email));
+
+      for (let i = 0; i < docsRestants.length; i += 450) {
+        const lot = docsRestants.slice(i, i + 450);
+        const batch = writeBatch(db);
+        lot.forEach((d) => batch.update(d.ref, { emailsAutorises: arrayUnion(email) }));
+        await batch.commit();
+      }
+    } catch (error) {
+      console.warn("Impossible d'appliquer le partage aux fiches existantes.", error);
+    } finally {
+      setPartageRetroEnCours(false);
+    }
   };
 
   const retirerPartage = async (email) => {
     await setDoc(doc(db, 'parametres', utilisateur.uid), { partageRestosAvec: arrayRemove(email) }, { merge: true });
     setPartages((prev) => prev.filter((e) => e !== email));
+
+    // Symétrique : on retire aussi l'accès de toutes les fiches existantes,
+    // sinon la personne garderait l'accès aux anciennes fiches malgré le retrait.
+    setPartageRetroEnCours(true);
+    try {
+      const qMesRestos = query(collection(db, 'restos'), where('proprietaireId', '==', utilisateur.uid));
+      const snap = await getDocs(qMesRestos);
+      const docsConcernes = snap.docs.filter((d) => (d.data().emailsAutorises || []).includes(email));
+
+      for (let i = 0; i < docsConcernes.length; i += 450) {
+        const lot = docsConcernes.slice(i, i + 450);
+        const batch = writeBatch(db);
+        lot.forEach((d) => batch.update(d.ref, { emailsAutorises: arrayRemove(email) }));
+        await batch.commit();
+      }
+    } catch (error) {
+      console.warn("Impossible de retirer l'accès sur les fiches existantes.", error);
+    } finally {
+      setPartageRetroEnCours(false);
+    }
   };
 
   const resetForm = () => {
@@ -496,6 +540,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: 'inherit', paddingBottom: '30px' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ padding: '15px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
           <button onClick={onClose} style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', borderRadius: '12px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -543,14 +588,19 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                 placeholder="email@exemple.com"
                 value={emailPartage}
                 onChange={(e) => setEmailPartage(e.target.value)}
+                disabled={partageRetroEnCours}
                 style={{ flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: '10px', border: '1px solid #E8DFCF', fontSize: '13px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
               />
-              <button onClick={ajouterPartage} style={{ flexShrink: 0, width: '38px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <IconPlus size={16} />
+              <button onClick={ajouterPartage} disabled={partageRetroEnCours} style={{ flexShrink: 0, width: '38px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', borderRadius: '10px', cursor: partageRetroEnCours ? 'default' : 'pointer', opacity: partageRetroEnCours ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {partageRetroEnCours ? (
+                  <span style={{ width: '13px', height: '13px', border: '2px solid rgba(255,255,255,0.35)', borderTopColor: '#FFFFFF', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                ) : (
+                  <IconPlus size={16} />
+                )}
               </button>
             </div>
             <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#8A7B68' }}>
-              S'applique aux nouveaux restos ajoutés à partir de maintenant.
+              {partageRetroEnCours ? 'Mise à jour de tes fiches en cours…' : "S'applique aussi à toutes tes fiches déjà enregistrées."}
             </p>
           </div>
         )}
