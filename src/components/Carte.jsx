@@ -39,21 +39,25 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
   // Distance et temps de route entre chaque étape consécutive, via OSRM
   // (service public gratuit, sans clé, basé sur OpenStreetMap).
   const [trajets, setTrajets] = useState([]);
+  const [geometrieRoute, setGeometrieRoute] = useState(null); // tracé réel des routes, pour affichage sur la carte
   const [chargementTrajets, setChargementTrajets] = useState(false);
   const [erreurTrajets, setErreurTrajets] = useState(false);
 
   useEffect(() => {
-    if (points.length < 2) { setTrajets([]); setErreurTrajets(false); return; }
+    if (points.length < 2) { setTrajets([]); setGeometrieRoute(null); setErreurTrajets(false); return; }
 
     const chercherTrajets = async () => {
       setChargementTrajets(true);
       setErreurTrajets(false);
       try {
         const coords = points.map((p) => `${p.lon},${p.lat}`).join(';');
-        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`);
+        // overview=full + geometries=geojson : on récupère le tracé réel
+        // suivant les routes, pas juste les distances/durées par étape.
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
         if (!res.ok) throw new Error(`Statut ${res.status}`);
         const data = await res.json();
-        const legs = data?.routes?.[0]?.legs || [];
+        const route = data?.routes?.[0];
+        const legs = route?.legs || [];
         if (legs.length === 0) throw new Error('Aucun trajet renvoyé');
         setTrajets(legs.map((leg, i) => ({
           de: points[i],
@@ -61,9 +65,13 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
           distanceKm: leg.distance / 1000,
           dureeMin: leg.duration / 60
         })));
+        // Coordonnées GeoJSON en [lon, lat] — Leaflet attend [lat, lon]
+        const coordsRoute = route?.geometry?.coordinates || [];
+        setGeometrieRoute(coordsRoute.map(([lon, lat]) => [lat, lon]));
       } catch (error) {
         console.warn("Temps de trajet indisponibles.", error);
         setTrajets([]);
+        setGeometrieRoute(null);
         setErreurTrajets(true);
       } finally {
         setChargementTrajets(false);
@@ -72,6 +80,11 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
 
     chercherTrajets();
   }, [points.map((p) => `${p.lat},${p.lon}`).join('|')]);
+
+  // Total cumulé de tous les trajets — utile pour voir d'un coup d'œil le
+  // volume de route sur l'ensemble du voyage.
+  const totalKm = trajets.reduce((somme, t) => somme + t.distanceKm, 0);
+  const totalMin = trajets.reduce((somme, t) => somme + t.dureeMin, 0);
 
   // Construction / mise à jour de la carte Leaflet
   useEffect(() => {
@@ -91,8 +104,13 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
 
     const latlngs = points.map((p) => [p.lat, p.lon]);
 
-    if (latlngs.length > 1) {
-      L.polyline(latlngs, { color: '#B8863C', weight: 3, opacity: 0.7, dashArray: '6 8' }).addTo(carte);
+    if (geometrieRoute && geometrieRoute.length > 1) {
+      // Tracé réel suivant les routes (voiture), via OSRM.
+      L.polyline(geometrieRoute, { color: '#B8863C', weight: 4, opacity: 0.8 }).addTo(carte);
+    } else if (latlngs.length > 1) {
+      // Repli temporaire (avant que OSRM ait répondu, ou en cas d'échec) :
+      // ligne droite en pointillés, clairement différenciée du vrai tracé.
+      L.polyline(latlngs, { color: '#B8863C', weight: 3, opacity: 0.5, dashArray: '6 8' }).addTo(carte);
     }
 
     points.forEach((p, i) => {
@@ -116,7 +134,7 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
     } else {
       carte.fitBounds(latlngs, { padding: [40, 40] });
     }
-  }, [points]);
+  }, [points, geometrieRoute]);
 
   // Nettoyage de l'instance Leaflet au démontage
   useEffect(() => {
@@ -191,6 +209,15 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
                 </span>
               </div>
             ))}
+          </div>
+
+          {/* Total cumulé de route sur l'ensemble du voyage */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '13px 14px', backgroundColor: '#2B2420', borderRadius: '14px', marginTop: '10px' }}>
+            <IconCar size={18} color="#D9CDB8" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: '13px', color: '#F7F1E8', fontWeight: '800' }}>Total sur ce voyage</span>
+            <span style={{ fontSize: '14px', color: '#FFFFFF', fontWeight: '800', flexShrink: 0 }}>
+              {totalKm.toFixed(0)} km · {totalMin < 60 ? `${Math.round(totalMin)} min` : `${Math.floor(totalMin / 60)}h${String(Math.round(totalMin % 60)).padStart(2, '0')}`}
+            </span>
           </div>
         </div>
       )}

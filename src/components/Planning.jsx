@@ -7,7 +7,7 @@ import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
-  IconExternalLink, IconDownload
+  IconExternalLink, IconDownload, IconChevronDown
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 import { Meteo } from './Meteo';
@@ -66,6 +66,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   const [lat, setLat] = useState(null);
   const [lon, setLon] = useState(null);
   const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de l'entrée modifiée
+  const [joursReplies, setJoursReplies] = useState({}); // { '2026-08-01': true } = replié
 
   // Jeton de session Google Places (New) — regroupe une recherche + sa
   // sélection finale pour que ce soit facturé/compté comme une seule session
@@ -209,6 +210,10 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
     acc[act.date].push(act);
     return acc;
   }, {});
+
+  const toggleJour = (jour) => {
+    setJoursReplies((prev) => ({ ...prev, [jour]: !prev[jour] }));
+  };
 
   // Génère un PDF avec une vraie mise en page (bandeau, cartes colorées,
   // pied de page) plutôt que du texte brut — téléchargé directement dans le
@@ -677,11 +682,37 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
         </div>
       )}
 
-      {Object.keys(groups).sort().map((day) => (
+      {Object.keys(groups).length > 1 && !showForm && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              const tousReplies = Object.keys(groups).every((j) => joursReplies[j]);
+              const nouvelEtat = {};
+              Object.keys(groups).forEach((j) => { nouvelEtat[j] = !tousReplies; });
+              setJoursReplies(nouvelEtat);
+            }}
+            style={{ border: 'none', background: 'none', color: '#B8863C', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 0' }}
+          >
+            {Object.keys(groups).every((j) => joursReplies[j]) ? 'Tout déplier' : 'Tout replier'}
+          </button>
+        </div>
+      )}
+
+      {Object.keys(groups).sort().map((day) => {
+        const replie = !!joursReplies[day];
+        return (
         <div key={day} style={{ marginBottom: '30px' }}>
-          <h3 style={{ fontSize: '14px', color: '#8A7B68', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <IconCalendarEvent size={16} /> {new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          <h3
+            onClick={() => toggleJour(day)}
+            style={{ fontSize: '14px', color: '#8A7B68', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <IconCalendarEvent size={16} />
+            {new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#B5A793', backgroundColor: '#F1E8D8', padding: '1px 8px', borderRadius: '999px' }}>{groups[day].length}</span>
+            <IconChevronDown size={16} style={{ marginLeft: 'auto', transform: replie ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', color: '#B5A793' }} />
           </h3>
+          {!replie && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
             {groups[day].map((act, index) => {
               const cat = CATEGORIES.find(c => c.id === act.categorie);
@@ -753,8 +784,10 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
               );
             })}
           </div>
+          )}
         </div>
-      ))}
+        );
+      })}
 
       {/* Vue d'ensemble du trajet — intégrée ici plutôt que dans un onglet séparé */}
       {activites.length > 0 && (
