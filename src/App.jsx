@@ -236,6 +236,42 @@ function App() {
     return () => { unsubProprio(); unsubInvite(); };
   }, [utilisateur]);
 
+  // Recale l'identité de la personne connectée dans chaque voyage où elle
+  // apparaît (par email) — admin y compris. Sans ça, un changement d'avatar
+  // ou de nom fait dans "Mon profil" ne se répercute jamais dans la liste
+  // "Voyageurs" d'un voyage : cette entrée a été enregistrée une fois pour
+  // toutes (à l'invitation, ou à la création du voyage) avec un id et un
+  // avatar figés à ce moment-là, jamais mis à jour depuis.
+  useEffect(() => {
+    if (!utilisateur?.email || voyages.length === 0) return;
+
+    voyages.forEach(async (v) => {
+      const liste = v.voyageurs || [];
+      const index = liste.findIndex((p) => p.email && p.email.toLowerCase() === utilisateur.email.toLowerCase());
+      if (index === -1) return;
+
+      const entree = liste[index];
+      const estAJour = entree.id === utilisateur.uid
+        && (entree.avatar || null) === (utilisateur.photoURL || null)
+        && entree.nom === monNom;
+      if (estAJour) return;
+
+      const nouvelleListe = [...liste];
+      nouvelleListe[index] = {
+        ...entree,
+        id: utilisateur.uid,
+        nom: monNom,
+        avatar: utilisateur.photoURL || null
+      };
+
+      try {
+        await updateDoc(doc(db, 'voyages', v.id), { voyageurs: nouvelleListe });
+      } catch (error) {
+        console.warn("Impossible de synchroniser le profil voyageur.", error);
+      }
+    });
+  }, [utilisateur, voyages, monNom]);
+
   const handleAddDestinationField = () => {
     setDestinations([...destinations, { nom: '', dateDebut: '', dateFin: '' }]);
   };
