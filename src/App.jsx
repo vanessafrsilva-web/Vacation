@@ -889,7 +889,7 @@ function App() {
     switch (activeTab) {
       case 'planning': return <Planning voyage={voyageActuelObj} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'gestion': return <Gestion voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
-      case 'checklist': return <Checklist voyageId={voyageActuelObj.id} voyage={voyageActuelObj} />;
+      case 'checklist': return <Checklist voyageId={voyageActuelObj.id} voyage={voyageActuelObj} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'facturation': return <Budget voyage={voyageActuelObj} currentUserNom={monNom} />;
       case 'historique': return <Historique voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
       case 'aujourdhui': return <Aujourdhui voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
