@@ -20,6 +20,7 @@ import { onAuthStateChanged, signOut, fetchSignInMethodsForEmail } from 'firebas
 import emailjs from '@emailjs/browser';
 import { Auth } from './components/Auth';
 import { Profil } from './components/Profil';
+import { Galerie } from './components/Galerie';
 import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2 } from '@tabler/icons-react';
 
 function App() {
@@ -897,6 +898,7 @@ function App() {
       case 'repas': return <Repas voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'courses': return <ListeCourses voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserId={utilisateur?.uid} currentUserNom={monNom} />;
       case 'urgence': return <FicheUrgence voyage={voyageActuelObj} setActiveTab={setActiveTab} />;
+      case 'galerie': return <Galerie voyage={voyageActuelObj} setActiveTab={setActiveTab} currentUserNom={monNom} />;
       default: return <div>Écran introuvable</div>;
     }
   };
@@ -1256,6 +1258,20 @@ function App() {
               >
                 <IconUserPlus size={14} />
                 {(voyageActuelObj.voyageurs || []).length > 0 ? 'Gérer' : 'Ajouter des voyageurs'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('galerie')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF',
+                  color: '#8A7B68', fontSize: '12px', fontWeight: '700',
+                  padding: '6px 12px', borderRadius: '999px', cursor: 'pointer', fontFamily: 'inherit'
+                }}
+              >
+                <IconPhoto size={14} color="#B8863C" />
+                Photos & Docs
               </button>
             </div>
             </div>
