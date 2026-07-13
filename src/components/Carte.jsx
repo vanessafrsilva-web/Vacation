@@ -36,42 +36,51 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
   // (hôtel / resto / visite) ont des coordonnées GPS enregistrées.
   const points = activites.filter((a) => typeof a.lat === 'number' && typeof a.lon === 'number');
 
+  // Palette de couleurs, une par jour de voyage — permet de repérer d'un
+  // coup d'œil sur la carte quelle portion du trajet correspond à quel jour.
+  const PALETTE_JOURS = ['#B8863C', '#5E8A87', '#9A6B87', '#6E8AA6', '#D6336C', '#4A7C59', '#F59E0B', '#7C5CBF'];
+  const joursTries = [...new Set(points.map((p) => p.date))].sort();
+  const couleurJour = (date) => PALETTE_JOURS[joursTries.indexOf(date) % PALETTE_JOURS.length];
+
   // Distance et temps de route entre chaque étape consécutive, via OSRM
-  // (service public gratuit, sans clé, basé sur OpenStreetMap).
+  // (service public gratuit, sans clé, basé sur OpenStreetMap). Chaque
+  // segment est demandé séparément (plutôt qu'un seul gros trajet groupé)
+  // pour récupérer le tracé réel de CHAQUE portion individuellement — c'est
+  // ce qui permet de colorer chaque bout de route selon le jour concerné.
   const [trajets, setTrajets] = useState([]);
-  const [geometrieRoute, setGeometrieRoute] = useState(null); // tracé réel des routes, pour affichage sur la carte
   const [chargementTrajets, setChargementTrajets] = useState(false);
   const [erreurTrajets, setErreurTrajets] = useState(false);
 
   useEffect(() => {
-    if (points.length < 2) { setTrajets([]); setGeometrieRoute(null); setErreurTrajets(false); return; }
+    if (points.length < 2) { setTrajets([]); setErreurTrajets(false); return; }
 
     const chercherTrajets = async () => {
       setChargementTrajets(true);
       setErreurTrajets(false);
       try {
-        const coords = points.map((p) => `${p.lon},${p.lat}`).join(';');
-        // overview=full + geometries=geojson : on récupère le tracé réel
-        // suivant les routes, pas juste les distances/durées par étape.
-        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
-        if (!res.ok) throw new Error(`Statut ${res.status}`);
-        const data = await res.json();
-        const route = data?.routes?.[0];
-        const legs = route?.legs || [];
-        if (legs.length === 0) throw new Error('Aucun trajet renvoyé');
-        setTrajets(legs.map((leg, i) => ({
-          de: points[i],
-          a: points[i + 1],
-          distanceKm: leg.distance / 1000,
-          dureeMin: leg.duration / 60
-        })));
-        // Coordonnées GeoJSON en [lon, lat] — Leaflet attend [lat, lon]
-        const coordsRoute = route?.geometry?.coordinates || [];
-        setGeometrieRoute(coordsRoute.map(([lon, lat]) => [lat, lon]));
+        const requetes = points.slice(0, -1).map(async (p, i) => {
+          const a = points[i + 1];
+          const res = await fetch(
+            `https://router.project-osrm.org/route/v1/driving/${p.lon},${p.lat};${a.lon},${a.lat}?overview=full&geometries=geojson`
+          );
+          if (!res.ok) throw new Error(`Statut ${res.status}`);
+          const data = await res.json();
+          const route = data?.routes?.[0];
+          if (!route) throw new Error('Aucun trajet renvoyé');
+          return {
+            de: p,
+            a,
+            distanceKm: route.distance / 1000,
+            dureeMin: route.duration / 60,
+            geometrie: (route.geometry?.coordinates || []).map(([lon, lat]) => [lat, lon])
+          };
+        });
+
+        const resultats = await Promise.all(requetes);
+        setTrajets(resultats);
       } catch (error) {
         console.warn("Temps de trajet indisponibles.", error);
         setTrajets([]);
-        setGeometrieRoute(null);
         setErreurTrajets(true);
       } finally {
         setChargementTrajets(false);
@@ -104,9 +113,17 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
 
     const latlngs = points.map((p) => [p.lat, p.lon]);
 
-    if (geometrieRoute && geometrieRoute.length > 1) {
-      // Tracé réel suivant les routes (voiture), via OSRM.
-      L.polyline(geometrieRoute, { color: '#B8863C', weight: 4, opacity: 0.8 }).addTo(carte);
+    if (trajets.length > 0) {
+      // Un tracé distinct par segment, coloré selon le jour du point de
+      // départ de ce segment — c'est ce qui donne le code couleur par jour.
+      trajets.forEach((t) => {
+        const couleur = couleurJour(t.de.date);
+        if (t.geometrie && t.geometrie.length > 1) {
+          L.polyline(t.geometrie, { color: couleur, weight: 4, opacity: 0.85 }).addTo(carte);
+        } else {
+          L.polyline([[t.de.lat, t.de.lon], [t.a.lat, t.a.lon]], { color: couleur, weight: 3, opacity: 0.5, dashArray: '6 8' }).addTo(carte);
+        }
+      });
     } else if (latlngs.length > 1) {
       // Repli temporaire (avant que OSRM ait répondu, ou en cas d'échec) :
       // ligne droite en pointillés, clairement différenciée du vrai tracé.
@@ -134,7 +151,7 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
     } else {
       carte.fitBounds(latlngs, { padding: [40, 40] });
     }
-  }, [points, geometrieRoute]);
+  }, [points, trajets]);
 
   // Nettoyage de l'instance Leaflet au démontage
   useEffect(() => {
@@ -176,6 +193,19 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
         </div>
       )}
 
+      {joursTries.length > 1 && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          {joursTries.map((j) => (
+            <div key={j} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', backgroundColor: '#FFFFFF', borderRadius: '999px', border: '1px solid #E8DFCF' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: couleurJour(j), flexShrink: 0 }} />
+              <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#2B2420' }}>
+                {new Date(j).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div
         ref={conteneurRef}
         style={{
@@ -200,7 +230,7 @@ export function Carte({ voyage, setActiveTab, integree = false }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {trajets.map((t, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E8DFCF' }}>
-                <IconCar size={16} color="#B8863C" style={{ flexShrink: 0 }} />
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: couleurJour(t.de.date), flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: '12.5px', color: '#2B2420', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {i + 1}. {t.de.titre} → {i + 2}. {t.a.titre}
                 </span>
