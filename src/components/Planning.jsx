@@ -7,7 +7,7 @@ import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
-  IconExternalLink, IconDownload, IconChevronDown
+  IconExternalLink, IconDownload, IconChevronDown, IconGasStation
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 import { Meteo } from './Meteo';
@@ -39,6 +39,10 @@ const CATEGORIES = [
   {
     id: 'visite', label: 'Visite / Activité', icon: <IconMapPin size={20} />, color: '#B97490', bg: '#F8EFF2',
     detailLabel: 'Détails', detailPlaceholder: 'ex: Billets déjà achetés en ligne', rechercheAdresse: true, notable: true
+  },
+  {
+    id: 'technique', label: 'Ravito & Technique', icon: <IconGasStation size={20} />, color: '#4A7C59', bg: '#EAF2EC',
+    detailLabel: 'Détail', detailPlaceholder: 'ex: Vidange eaux grises, plein diesel, recharge gaz', rechercheAdresse: true
   }
 ];
 
@@ -46,7 +50,7 @@ const CATEGORIES = [
 // renseigné ici alimente automatiquement le total du Bilan / Budget.
 const CATEGORIE_BUDGET = {
   vol: 'Essence', hotel: 'Autre', taxi: 'Essence',
-  transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités'
+  transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités', technique: 'Essence'
 };
 
 export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
@@ -66,6 +70,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   const [lat, setLat] = useState(null);
   const [lon, setLon] = useState(null);
   const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de l'entrée modifiée
+  const [essaiSoumission, setEssaiSoumission] = useState(false); // devient vrai après une 1ère tentative d'envoi, pour afficher les champs manquants
   const [joursReplies, setJoursReplies] = useState({}); // { '2026-08-01': true } = replié
 
   // Jeton de session Google Places (New) — regroupe une recherche + sa
@@ -361,6 +366,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
     setDocumentUrl(''); setDocumentNom(''); setErreurUpload('');
     setIdEnEdition(null);
     setSuggestionsOuvertes(false); setSuggestionsLieu([]);
+    setEssaiSoumission(false);
     setShowForm(false);
   };
 
@@ -448,6 +454,8 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
 
   const handleAddActivite = async (e) => {
     e.preventDefault();
+    setEssaiSoumission(true);
+    if (!titre.trim() || !date || !heure) return; // les champs manquants sont maintenant surlignés en rouge ci-dessus
     const payload = {
       titre, date, heure, categorie,
       lieu: catActive?.departArrivee ? '' : lieu,
@@ -575,18 +583,28 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
             ))}
           </div>
 
-          <input placeholder="Titre (ex: Vol Genève → Édimbourg)" value={titre} onChange={e => setTitre(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
+          <input placeholder="Titre (ex: Vol Genève → Édimbourg)" value={titre} onChange={e => setTitre(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !titre.trim() ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
 
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '4px' }}>
             <div style={{ flex: 1 }}>
-              {catActive?.dateDepart && <label style={{ fontSize: '11px', color: '#B5A793', display: 'block', marginBottom: '3px' }}>Arrivée</label>}
-              <input type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
+              <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '3px' }}>
+                {catActive?.dateDepart ? 'Arrivée' : 'Date'} <span style={{ color: '#B3453A' }}>*</span>
+              </label>
+              <input type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
             </div>
             <div style={{ flex: 1 }}>
-              {catActive?.dateDepart && <label style={{ fontSize: '11px', color: '#B5A793', display: 'block', marginBottom: '3px' }}>Heure</label>}
-              <input type="time" value={heure} onChange={e => setHeure(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
+              <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '3px' }}>
+                Heure <span style={{ color: '#B3453A' }}>*</span>
+              </label>
+              <input type="time" value={heure} onChange={e => setHeure(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
             </div>
           </div>
+          {essaiSoumission && (!date || !heure) && (
+            <p style={{ margin: '0 0 10px 2px', fontSize: '11.5px', color: '#B3453A', fontWeight: '600' }}>
+              Merci d'indiquer une date et une heure.
+            </p>
+          )}
+          {!(essaiSoumission && (!date || !heure)) && <div style={{ marginBottom: '10px' }} />}
 
           {/* Date de départ, uniquement pour un hébergement (séjour sur plusieurs jours) */}
           {catActive?.dateDepart && (
@@ -598,8 +616,8 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
 
           {catActive?.departArrivee ? (
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <input placeholder="Départ (ex: Genève)" value={depart} onChange={(e) => setDepart(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }} />
-              <input placeholder="Arrivée (ex: Édimbourg)" value={arrivee} onChange={(e) => setArrivee(e.target.value)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              <input placeholder="Départ (Genève)" value={depart} onChange={(e) => setDepart(e.target.value)} style={{ flex: 1, minWidth: 0, padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              <input placeholder="Arrivée (Édimbourg)" value={arrivee} onChange={(e) => setArrivee(e.target.value)} style={{ flex: 1, minWidth: 0, padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} />
             </div>
           ) : (
             <div style={{ position: 'relative', marginBottom: '10px' }}>
