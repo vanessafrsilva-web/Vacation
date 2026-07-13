@@ -6,13 +6,13 @@ import 'leaflet/dist/leaflet.css';
 import { IconArrowLeft, IconMapOff, IconCar } from '@tabler/icons-react';
 
 const COULEURS_CATEGORIE = {
-  hotel: '#9A6B87', resto: '#B8863C', visite: '#B97490',
+  hotel: '#D6336C', resto: '#B8863C', visite: '#B97490',
   taxi: '#F59E0B', transport: '#5E8A87', vol: '#6E8AA6',
-  service: '#5E8A87', laverie: '#6E8AA6'
+  service: '#5E8A87', laverie: '#6E8AA6', technique: '#4A7C59'
 };
 const EMOJI_CATEGORIE = {
   hotel: '🛏️', resto: '☕', visite: '📍', taxi: '🚕', transport: '🚗', vol: '✈️',
-  service: '🚿', laverie: '🧺'
+  service: '🚿', laverie: '🧺', technique: '⛽'
 };
 
 export function Carte({ voyage, setActiveTab, integree = false }) {
