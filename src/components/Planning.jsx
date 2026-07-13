@@ -618,35 +618,29 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
             <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>
               {catActive?.dateDepart ? 'Arrivée' : 'Date'} <span style={{ color: '#B3453A' }}>*</span>
             </label>
-            <div style={{ position: 'relative', marginBottom: '10px' }}>
-              <IconCalendarEvent size={16} color="#B5A793" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              <input
-                type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)}
-                style={{
-                  width: '100%', padding: '12px 12px 12px 36px', borderRadius: '12px',
-                  border: `1.5px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`,
-                  backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
-                  colorScheme: 'light', accentColor: '#B8863C'
-                }}
-                required
-              />
-            </div>
+            <input
+              type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)}
+              style={{
+                display: 'block', width: '100%', maxWidth: '100%', padding: '12px', borderRadius: '12px',
+                border: `1.5px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`,
+                backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
+                colorScheme: 'light', accentColor: '#B8863C', marginBottom: '10px'
+              }}
+              required
+            />
             <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>
               Heure <span style={{ color: '#B3453A' }}>*</span>
             </label>
-            <div style={{ position: 'relative' }}>
-              <IconClock size={16} color="#B5A793" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              <input
-                type="time" value={heure} onChange={e => setHeure(e.target.value)}
-                style={{
-                  width: '100%', padding: '12px 12px 12px 36px', borderRadius: '12px',
-                  border: `1.5px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`,
-                  backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
-                  colorScheme: 'light', accentColor: '#B8863C'
-                }}
-                required
-              />
-            </div>
+            <input
+              type="time" value={heure} onChange={e => setHeure(e.target.value)}
+              style={{
+                display: 'block', width: '100%', maxWidth: '100%', padding: '12px', borderRadius: '12px',
+                border: `1.5px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`,
+                backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
+                colorScheme: 'light', accentColor: '#B8863C'
+              }}
+              required
+            />
           </div>
           {essaiSoumission && (!date || !heure) && (
             <p style={{ margin: '6px 0 10px 2px', fontSize: '11.5px', color: '#B3453A', fontWeight: '600' }}>
