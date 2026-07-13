@@ -229,6 +229,11 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
     return acc;
   }, {});
 
+  // Numéro d'étape global (1, 2, 3...) dans l'ordre chronologique de tout
+  // le voyage — les mêmes numéros que ceux affichés sur la carte.
+  const numeroEtape = {};
+  activites.forEach((act, i) => { numeroEtape[act.id] = i + 1; });
+
   const toggleJour = (jour) => {
     setJoursReplies((prev) => ({ ...prev, [jour]: !prev[jour] }));
   };
@@ -785,8 +790,13 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
                   <div style={{ backgroundColor: cat?.bg, color: cat?.color, padding: '12px', borderRadius: '14px', zIndex: 1, height: 'fit-content' }}>{cat?.icon}</div>
                   <div style={{ flex: 1, backgroundColor: '#FFF', padding: '16px', borderRadius: '16px', marginBottom: '16px', border: '1px solid #E8DFCF', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontWeight: '700', color: '#2B2420', fontSize: '15px' }}>{act.titre}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+                        <span style={{ flexShrink: 0, width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#F1E8D8', color: '#8A7B68', fontSize: '11px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {numeroEtape[act.id]}
+                        </span>
+                        <span style={{ fontWeight: '700', color: '#2B2420', fontSize: '15px' }}>{act.titre}</span>
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                         <button onClick={() => commencerEdition(act)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconPencil size={15} /></button>
                         <button onClick={() => handleDeleteActivite(act)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconTrash size={16} /></button>
                       </div>
