@@ -621,10 +621,10 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
             <input
               type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)}
               style={{
-                display: 'block', width: '100%', maxWidth: '100%', padding: '12px', borderRadius: '12px',
+                display: 'block', width: '100%', maxWidth: '100%', padding: '9px 12px', borderRadius: '12px',
                 border: `1.5px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`,
-                backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
-                colorScheme: 'light', accentColor: '#B8863C', marginBottom: '10px'
+                backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '15px',
+                colorScheme: 'light', accentColor: '#B8863C', marginBottom: '8px'
               }}
               required
             />
@@ -634,9 +634,9 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
             <input
               type="time" value={heure} onChange={e => setHeure(e.target.value)}
               style={{
-                display: 'block', width: '100%', maxWidth: '100%', padding: '12px', borderRadius: '12px',
+                display: 'block', width: '100%', maxWidth: '100%', padding: '9px 12px', borderRadius: '12px',
                 border: `1.5px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`,
-                backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
+                backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '15px',
                 colorScheme: 'light', accentColor: '#B8863C'
               }}
               required
