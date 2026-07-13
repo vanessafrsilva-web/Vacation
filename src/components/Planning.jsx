@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../firebase';
 import { collection, query, where, getDocs, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -7,7 +7,7 @@ import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
-  IconExternalLink, IconDownload, IconChevronDown, IconGasStation
+  IconExternalLink, IconDownload, IconChevronDown, IconGasStation, IconWalk
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 import { Meteo } from './Meteo';
@@ -50,6 +50,11 @@ const CATEGORIES = [
     id: 'technique', label: 'Ravito & Technique', icon: <IconGasStation size={20} />, color: '#4A7C59', bg: '#EAF2EC',
     detailLabel: 'Détail', detailPlaceholder: 'ex: Vidange eaux grises, plein diesel, recharge gaz', rechercheAdresse: true,
     titrePlaceholder: 'Titre (ex: Plein + vidange eaux à Fort William)'
+  },
+  {
+    id: 'randonnee', label: 'Marche / Rando / Sport', icon: <IconWalk size={20} />, color: '#3B6EA5', bg: '#EAF1F8',
+    detailLabel: 'Détail', detailPlaceholder: 'ex: 12 km, dénivelé 450m, boucle', rechercheAdresse: true, notable: true,
+    titrePlaceholder: 'Titre (ex: Rando Ben Nevis)'
   }
 ];
 
@@ -57,7 +62,7 @@ const CATEGORIES = [
 // renseigné ici alimente automatiquement le total du Bilan / Budget.
 const CATEGORIE_BUDGET = {
   vol: 'Essence', hotel: 'Autre', taxi: 'Essence',
-  transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités', technique: 'Essence'
+  transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités', technique: 'Essence', randonnee: 'Activités'
 };
 
 export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
@@ -77,6 +82,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   const [lat, setLat] = useState(null);
   const [lon, setLon] = useState(null);
   const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de l'entrée modifiée
+  const formRef = useRef(null);
   const [essaiSoumission, setEssaiSoumission] = useState(false); // devient vrai après une 1ère tentative d'envoi, pour afficher les champs manquants
   const [joursReplies, setJoursReplies] = useState({}); // { '2026-08-01': true } = replié
 
@@ -386,6 +392,12 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
     setDocumentUrl(act.documentUrl || ''); setDocumentNom(act.documentNom || '');
     setIdEnEdition(act.id);
     setShowForm(true);
+    // Le formulaire s'affiche en haut de la liste — sans ça, sur un planning
+    // chargé, on ne voit pas qu'il y a quoi que ce soit à modifier et on
+    // doit remonter la page à la main.
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   };
 
   // Envoie un PDF/image (billet, réservation, visa...) sur Firebase Storage
@@ -527,7 +539,17 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
               <IconDownload size={18} />
             </button>
           )}
-          <button onClick={() => (showForm ? resetForm() : setShowForm(true))} style={{ backgroundColor: '#B8863C', color: '#FFF', border: 'none', padding: '10px 16px', borderRadius: '16px', fontWeight: '700', cursor: 'pointer' }}>
+          <button
+            onClick={() => {
+              if (showForm) {
+                resetForm();
+              } else {
+                setShowForm(true);
+                setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+              }
+            }}
+            style={{ backgroundColor: '#B8863C', color: '#FFF', border: 'none', padding: '10px 16px', borderRadius: '16px', fontWeight: '700', cursor: 'pointer' }}
+          >
             {showForm ? <IconX size={18} /> : <IconPlus size={18} />}
           </button>
         </div>
@@ -567,7 +589,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAddActivite} style={{ backgroundColor: '#F7F1E8', padding: '20px', borderRadius: '20px', marginBottom: '20px', border: '1px solid #E8DFCF' }}>
+        <form ref={formRef} onSubmit={handleAddActivite} style={{ backgroundColor: '#F7F1E8', padding: '20px', borderRadius: '20px', marginBottom: '20px', border: '1px solid #E8DFCF' }}>
 
           {/* Grille de catégories, comme un pense-bête visuel */}
           <p style={{ fontSize: '13px', color: '#475569', fontWeight: '600', margin: '0 0 8px 2px' }}>Type</p>
