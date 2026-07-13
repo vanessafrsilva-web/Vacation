@@ -1167,9 +1167,16 @@ function App() {
         <div style={{ padding: 'calc(15px + env(safe-area-inset-top)) 15px 15px 15px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #E8DFCF' }}>
           <div style={{ maxWidth: '500px', margin: '0 auto', position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
-              onClick={() => { setVoyageActif(''); setIsDropdownOpen(false); }}
-              aria-label="Retour à Mes Voyages"
-              title="Retour à Mes Voyages"
+              onClick={() => {
+                if (activeTab === 'gestion') {
+                  setVoyageActif('');
+                } else {
+                  setActiveTab('gestion');
+                }
+                setIsDropdownOpen(false);
+              }}
+              aria-label={activeTab === 'gestion' ? 'Retour à Mes Voyages' : "Retour à l'aperçu du voyage"}
+              title={activeTab === 'gestion' ? 'Retour à Mes Voyages' : "Retour à l'aperçu du voyage"}
               style={{ flexShrink: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '14px', color: '#2B2420', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}
             >
               <IconArrowLeft size={20} />
