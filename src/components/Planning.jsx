@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, onSnapshot, addDoc, updateDoc, delet
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import jsPDF from 'jspdf';
 import {
-  IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconSteeringWheel,
+  IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconMusic,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
   IconExternalLink, IconDownload, IconChevronDown, IconGasStation, IconWalk
@@ -27,9 +27,9 @@ const CATEGORIES = [
     titrePlaceholder: 'Titre (ex: Hôtel Ibis Édimbourg)'
   },
   {
-    id: 'taxi', label: 'Taxi / Chauffeur', icon: <IconSteeringWheel size={20} />, color: '#F59E0B', bg: '#FBF3E3',
-    detailLabel: 'Chauffeur / société & contact', detailPlaceholder: 'ex: Uber, +41 79 000 00 00',
-    titrePlaceholder: 'Titre (ex: Taxi vers l\'aéroport)'
+    id: 'taxi', label: 'Loisirs / Soirée', icon: <IconMusic size={20} />, color: '#8B5CB8', bg: '#F2ECF8',
+    detailLabel: 'Détails', detailPlaceholder: 'ex: Concert, bar, spectacle, réservation...', rechercheAdresse: true, notable: true,
+    titrePlaceholder: 'Titre (ex: Soirée au Whisky Bar)'
   },
   {
     id: 'transport', label: 'Transport', icon: <IconCar size={20} />, color: '#5E8A87', bg: '#EEF3F2',
@@ -61,7 +61,7 @@ const CATEGORIES = [
 // Catégorie Budget associée à chaque catégorie Planning, pour que le prix
 // renseigné ici alimente automatiquement le total du Bilan / Budget.
 const CATEGORIE_BUDGET = {
-  vol: 'Essence', hotel: 'Autre', taxi: 'Essence',
+  vol: 'Essence', hotel: 'Autre', taxi: 'Verres/Resto',
   transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités', technique: 'Essence', randonnee: 'Activités'
 };
 
