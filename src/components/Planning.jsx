@@ -52,7 +52,7 @@ const CATEGORIES = [
     titrePlaceholder: 'Titre (ex: Plein + vidange eaux à Fort William)'
   },
   {
-    id: 'randonnee', label: 'Marche / Rando / Sport', icon: <IconWalk size={20} />, color: '#3B6EA5', bg: '#EAF1F8',
+    id: 'randonnee', label: 'Randonnée / Sport', icon: <IconWalk size={20} />, color: '#3B6EA5', bg: '#EAF1F8',
     detailLabel: 'Détail', detailPlaceholder: 'ex: 12 km, dénivelé 450m, boucle', rechercheAdresse: true, notable: true,
     titrePlaceholder: 'Titre (ex: Rando Ben Nevis)'
   }
