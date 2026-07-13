@@ -615,7 +615,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
           <input placeholder={catActive?.titrePlaceholder || 'Titre'} value={titre} onChange={e => setTitre(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !titre.trim() ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
 
           <div style={{ display: 'flex', gap: '14px', marginBottom: '4px' }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>
                 {catActive?.dateDepart ? 'Arrivée' : 'Date'} <span style={{ color: '#B3453A' }}>*</span>
               </label>
@@ -624,7 +624,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
                 <input
                   type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)}
                   style={{
-                    width: '100%', padding: '12px 12px 12px 36px', borderRadius: '12px',
+                    width: '100%', minWidth: 0, padding: '12px 8px 12px 36px', borderRadius: '12px',
                     border: `1.5px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`,
                     backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
                     colorScheme: 'light', accentColor: '#B8863C'
@@ -633,7 +633,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
                 />
               </div>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>
                 Heure <span style={{ color: '#B3453A' }}>*</span>
               </label>
@@ -642,7 +642,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
                 <input
                   type="time" value={heure} onChange={e => setHeure(e.target.value)}
                   style={{
-                    width: '100%', padding: '12px 12px 12px 36px', borderRadius: '12px',
+                    width: '100%', minWidth: 0, padding: '12px 8px 12px 36px', borderRadius: '12px',
                     border: `1.5px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`,
                     backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
                     colorScheme: 'light', accentColor: '#B8863C'
