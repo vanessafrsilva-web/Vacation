@@ -18,31 +18,38 @@ import { enregistrerHistorique } from '../historique';
 const CATEGORIES = [
   {
     id: 'vol', label: 'Vol', icon: <IconPlaneDeparture size={20} />, color: '#6E8AA6', bg: '#EEF2F0',
-    detailLabel: 'Compagnie & n° de vol', detailPlaceholder: 'ex: EasyJet EZY1234', departArrivee: true
+    detailLabel: 'Compagnie & n° de vol', detailPlaceholder: 'ex: EasyJet EZY1234', departArrivee: true,
+    titrePlaceholder: 'Titre (ex: Vol Genève → Édimbourg)'
   },
   {
     id: 'hotel', label: 'Hébergement', icon: <IconBed size={20} />, color: '#9A6B87', bg: '#F3ECF1',
-    dateDepart: true, rechercheAdresse: true
+    dateDepart: true, rechercheAdresse: true,
+    titrePlaceholder: 'Titre (ex: Hôtel Ibis Édimbourg)'
   },
   {
     id: 'taxi', label: 'Taxi / Chauffeur', icon: <IconSteeringWheel size={20} />, color: '#F59E0B', bg: '#FBF3E3',
-    detailLabel: 'Chauffeur / société & contact', detailPlaceholder: 'ex: Uber, +41 79 000 00 00'
+    detailLabel: 'Chauffeur / société & contact', detailPlaceholder: 'ex: Uber, +41 79 000 00 00',
+    titrePlaceholder: 'Titre (ex: Taxi vers l\'aéroport)'
   },
   {
     id: 'transport', label: 'Transport', icon: <IconCar size={20} />, color: '#5E8A87', bg: '#EEF3F2',
-    detailLabel: 'Compagnie / réf. réservation', detailPlaceholder: 'ex: Train ScotRail, résa #12345', rechercheAdresse: true
+    detailLabel: 'Compagnie / réf. réservation', detailPlaceholder: 'ex: Train ScotRail, résa #12345', rechercheAdresse: true,
+    titrePlaceholder: 'Titre (ex: Train Genève → Zurich)'
   },
   {
     id: 'resto', label: 'Resto / Brunch', icon: <IconCoffee size={20} />, color: '#B8863C', bg: '#F1E8D8',
-    detailLabel: 'Réservation au nom de', detailPlaceholder: 'ex: Réservé au nom de Vanessa', rechercheAdresse: true, notable: true
+    detailLabel: 'Réservation au nom de', detailPlaceholder: 'ex: Réservé au nom de Vanessa', rechercheAdresse: true, notable: true,
+    titrePlaceholder: 'Titre (ex: Brunch chez The Dogs)'
   },
   {
     id: 'visite', label: 'Visite / Activité', icon: <IconMapPin size={20} />, color: '#B97490', bg: '#F8EFF2',
-    detailLabel: 'Détails', detailPlaceholder: 'ex: Billets déjà achetés en ligne', rechercheAdresse: true, notable: true
+    detailLabel: 'Détails', detailPlaceholder: 'ex: Billets déjà achetés en ligne', rechercheAdresse: true, notable: true,
+    titrePlaceholder: 'Titre (ex: Château d\'Édimbourg)'
   },
   {
     id: 'technique', label: 'Ravito & Technique', icon: <IconGasStation size={20} />, color: '#4A7C59', bg: '#EAF2EC',
-    detailLabel: 'Détail', detailPlaceholder: 'ex: Vidange eaux grises, plein diesel, recharge gaz', rechercheAdresse: true
+    detailLabel: 'Détail', detailPlaceholder: 'ex: Vidange eaux grises, plein diesel, recharge gaz', rechercheAdresse: true,
+    titrePlaceholder: 'Titre (ex: Plein + vidange eaux à Fort William)'
   }
 ];
 
@@ -583,28 +590,52 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
             ))}
           </div>
 
-          <input placeholder="Titre (ex: Vol Genève → Édimbourg)" value={titre} onChange={e => setTitre(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !titre.trim() ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
+          <input placeholder={catActive?.titrePlaceholder || 'Titre'} value={titre} onChange={e => setTitre(e.target.value)} style={{ width: '100%', padding: '12px', marginBottom: '10px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !titre.trim() ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
 
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', gap: '14px', marginBottom: '4px' }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '3px' }}>
+              <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>
                 {catActive?.dateDepart ? 'Arrivée' : 'Date'} <span style={{ color: '#B3453A' }}>*</span>
               </label>
-              <input type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
+              <div style={{ position: 'relative' }}>
+                <IconCalendarEvent size={16} color="#B5A793" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <input
+                  type="date" value={date} min={voyage?.dateDebut} max={voyage?.dateFin} onChange={e => setDate(e.target.value)}
+                  style={{
+                    width: '100%', padding: '12px 12px 12px 36px', borderRadius: '12px',
+                    border: `1.5px solid ${essaiSoumission && !date ? '#B3453A' : '#E8DFCF'}`,
+                    backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
+                    colorScheme: 'light', accentColor: '#B8863C'
+                  }}
+                  required
+                />
+              </div>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '3px' }}>
+              <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>
                 Heure <span style={{ color: '#B3453A' }}>*</span>
               </label>
-              <input type="time" value={heure} onChange={e => setHeure(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: `1px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`, backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit' }} required />
+              <div style={{ position: 'relative' }}>
+                <IconClock size={16} color="#B5A793" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <input
+                  type="time" value={heure} onChange={e => setHeure(e.target.value)}
+                  style={{
+                    width: '100%', padding: '12px 12px 12px 36px', borderRadius: '12px',
+                    border: `1.5px solid ${essaiSoumission && !heure ? '#B3453A' : '#E8DFCF'}`,
+                    backgroundColor: '#FFFFFF', boxSizing: 'border-box', fontFamily: 'inherit',
+                    colorScheme: 'light', accentColor: '#B8863C'
+                  }}
+                  required
+                />
+              </div>
             </div>
           </div>
           {essaiSoumission && (!date || !heure) && (
-            <p style={{ margin: '0 0 10px 2px', fontSize: '11.5px', color: '#B3453A', fontWeight: '600' }}>
+            <p style={{ margin: '6px 0 10px 2px', fontSize: '11.5px', color: '#B3453A', fontWeight: '600' }}>
               Merci d'indiquer une date et une heure.
             </p>
           )}
-          {!(essaiSoumission && (!date || !heure)) && <div style={{ marginBottom: '10px' }} />}
+          {!(essaiSoumission && (!date || !heure)) && <div style={{ marginBottom: '14px' }} />}
 
           {/* Date de départ, uniquement pour un hébergement (séjour sur plusieurs jours) */}
           {catActive?.dateDepart && (
