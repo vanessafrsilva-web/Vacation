@@ -566,32 +566,32 @@ function App() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '19px' }}>
-            <span style={{ fontSize: '13px', color: '#8A7B68' }}>{monNom}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ fontSize: '13.5px', color: '#8A7B68', fontWeight: '600', margin: '0 0 10px 2px' }}>Bonjour {monNom}</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               <button
                 onClick={() => setModuleActif(null)}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#2B2420', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '8px 13px', borderRadius: '999px', boxShadow: '0 2px 6px rgba(43,36,32,0.04)' }}
               >
-                <IconHome size={14} /> Accueil
+                <IconHome size={14} color="#B8863C" /> Accueil
               </button>
               <button
                 onClick={() => setShowCarnet(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#2B2420', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '8px 13px', borderRadius: '999px', boxShadow: '0 2px 6px rgba(43,36,32,0.04)' }}
               >
-                <IconNotebook size={14} /> Carnet
+                <IconNotebook size={14} color="#B8863C" /> Carnet
               </button>
               <button
                 onClick={() => setShowProfil(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#2B2420', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '8px 13px', borderRadius: '999px', boxShadow: '0 2px 6px rgba(43,36,32,0.04)' }}
               >
-                <IconUserCircle size={14} /> Profil
+                <IconUserCircle size={14} color="#B8863C" /> Profil
               </button>
               <button
                 onClick={() => signOut(auth)}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#B3453A', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '8px 13px', borderRadius: '999px', boxShadow: '0 2px 6px rgba(43,36,32,0.04)' }}
               >
-                <IconLogout size={14} /> Déconnexion
+                <IconLogout size={14} color="#B3453A" /> Déconnexion
               </button>
             </div>
           </div>
