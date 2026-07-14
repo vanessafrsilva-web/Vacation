@@ -1,7 +1,7 @@
 import React from 'react';
 import { IconHome2, IconCalendar, IconChecklist, IconReceipt2, IconTrophy } from '@tabler/icons-react';
 
-export function BottomNav({ activeTab, setActiveTab }) {
+export function BottomNav({ activeTab, setActiveTab, nouveautes = {} }) {
   const navItems = [
     { id: 'gestion', icon: <IconHome2 size={21} />, label: 'Voyages' },
     { id: 'planning', icon: <IconCalendar size={21} />, label: 'Planning' },
@@ -33,6 +33,7 @@ export function BottomNav({ activeTab, setActiveTab }) {
       }}>
         {navItems.map(item => {
           const actif = activeTab === item.id;
+          const aDuNouveau = !!nouveautes[item.id] && !actif;
           return (
             <div
               key={item.id}
@@ -49,8 +50,15 @@ export function BottomNav({ activeTab, setActiveTab }) {
                 transition: 'background-color 0.2s'
               }}
             >
-              <span style={{ color: actif ? '#B8863C' : '#B5A793', display: 'flex', transition: 'color 0.2s' }}>
+              <span style={{ position: 'relative', color: actif ? '#B8863C' : '#B5A793', display: 'flex', transition: 'color 0.2s' }}>
                 {item.icon}
+                {aDuNouveau && (
+                  <span style={{
+                    position: 'absolute', top: '-2px', right: '-2px',
+                    width: '9px', height: '9px', borderRadius: '50%',
+                    backgroundColor: '#16C784', border: '2px solid #FFFFFF'
+                  }} />
+                )}
               </span>
               <span style={{
                 fontSize: '10px',
