@@ -15,7 +15,7 @@ import { Planning } from './components/Planning';
 import { Checklist } from './components/Checklist';
 import { Budget } from './components/Budget';
 import { db, auth } from './firebase';
-import { collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, arrayUnion, arrayRemove, enableNetwork, disableNetwork } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc, setDoc, arrayUnion, arrayRemove, enableNetwork, disableNetwork } from 'firebase/firestore';
 import { onAuthStateChanged, signOut, fetchSignInMethodsForEmail } from 'firebase/auth';
 import emailjs from '@emailjs/browser';
 import { Auth } from './components/Auth';
@@ -236,6 +236,67 @@ function App() {
 
     return () => { unsubProprio(); unsubInvite(); };
   }, [utilisateur]);
+
+  // --- Bulle verte "quelqu'un a ajouté un truc" sur Planning/Checklist ---
+  // Principe : on garde en mémoire, par personne et par voyage, la dernière
+  // fois où elle a ouvert chaque onglet. Si le dernier élément ajouté dans
+  // Planning ou Checklist est plus récent que ça ET n'a pas été ajouté par
+  // elle-même, on affiche un petit point vert sur l'icône du menu du bas.
+  const [vues, setVues] = useState({});
+  const [dernierPlanning, setDernierPlanning] = useState({ ms: 0, auteurId: null });
+  const [dernierChecklist, setDernierChecklist] = useState({ ms: 0, auteurId: null });
+
+  useEffect(() => {
+    if (!voyageActif || !utilisateur) { setVues({}); return; }
+    const idDoc = `${utilisateur.uid}_${voyageActif}`;
+    const unsub = onSnapshot(doc(db, 'vues', idDoc), (snap) => {
+      setVues(snap.exists() ? snap.data() : {});
+    });
+    return () => unsub();
+  }, [voyageActif, utilisateur]);
+
+  useEffect(() => {
+    if (!voyageActif) { setDernierPlanning({ ms: 0, auteurId: null }); return; }
+    const unsub = onSnapshot(collection(db, `voyages/${voyageActif}/activites`), (snap) => {
+      let ms = 0, auteurId = null;
+      snap.forEach((d) => {
+        const data = d.data();
+        const t = data.createdAt?.toMillis ? data.createdAt.toMillis() : 0;
+        if (t > ms) { ms = t; auteurId = data.auteurId || null; }
+      });
+      setDernierPlanning({ ms, auteurId });
+    });
+    return () => unsub();
+  }, [voyageActif]);
+
+  useEffect(() => {
+    if (!voyageActif) { setDernierChecklist({ ms: 0, auteurId: null }); return; }
+    const q = query(collection(db, 'checklist'), where('voyageId', '==', voyageActif));
+    const unsub = onSnapshot(q, (snap) => {
+      let ms = 0, auteurId = null;
+      snap.forEach((d) => {
+        const data = d.data();
+        const t = data.createdAt?.toMillis ? data.createdAt.toMillis() : 0;
+        if (t > ms) { ms = t; auteurId = data.auteurId || null; }
+      });
+      setDernierChecklist({ ms, auteurId });
+    });
+    return () => unsub();
+  }, [voyageActif]);
+
+  const nouveautes = {
+    planning: dernierPlanning.ms > (vues.planning || 0) && dernierPlanning.auteurId !== utilisateur?.uid,
+    checklist: dernierChecklist.ms > (vues.checklist || 0) && dernierChecklist.auteurId !== utilisateur?.uid
+  };
+
+  // Dès qu'on ouvre l'onglet concerné, on marque comme "vu maintenant" —
+  // la bulle disparaît immédiatement, pour soi, sans affecter les autres.
+  useEffect(() => {
+    if (!voyageActif || !utilisateur) return;
+    if (activeTab !== 'planning' && activeTab !== 'checklist') return;
+    const idDoc = `${utilisateur.uid}_${voyageActif}`;
+    setDoc(doc(db, 'vues', idDoc), { [activeTab]: Date.now() }, { merge: true }).catch(() => {});
+  }, [activeTab, voyageActif, utilisateur]);
 
   // Recale l'identité de la personne connectée dans chaque voyage où elle
   // apparaît (par email) — admin y compris. Sans ça, un changement d'avatar
@@ -1418,7 +1479,7 @@ function App() {
       
       {/* Barre de navigation du bas (visible uniquement si un voyage est ouvert) */}
       {voyageActuelObj && (
-        <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+        <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} nouveautes={nouveautes} />
       )}
       
     </div>
