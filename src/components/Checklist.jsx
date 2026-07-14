@@ -17,6 +17,7 @@ import {
   IconCircleCheckFilled,
   IconCircle,
   IconPlus,
+  IconPencil,
   IconClipboardList,
   IconChevronDown,
   IconCalendar,
@@ -179,6 +180,8 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const [notes, setNotes] = useState('');
   const [assigneA, setAssigneA] = useState('');
 
+  const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de la tâche modifiée
+
   const [filtreCategorie, setFiltreCategorie] = useState('toutes');
   const [menuModeles, setMenuModeles] = useState(false);
 
@@ -252,9 +255,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     }
   };
 
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    await ajouterTache(nouvelleTache, { categorie, priorite, echeance, notes, assigneA });
+  const resetFormulaire = () => {
     setNouvelleTache('');
     setCategorie('autre');
     setPriorite('normal');
@@ -262,6 +263,43 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     setNotes('');
     setAssigneA('');
     setDetailsOuverts(false);
+    setIdEnEdition(null);
+  };
+
+  const commencerEdition = (tache) => {
+    setNouvelleTache(tache.nom);
+    setCategorie(tache.categorie || 'autre');
+    setPriorite(tache.priorite || 'normal');
+    setEcheance(tache.echeance || '');
+    setNotes(tache.notes || '');
+    setAssigneA(tache.assigneA || '');
+    setIdEnEdition(tache.id);
+    setDetailsOuverts(true);
+  };
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!nouvelleTache.trim()) return;
+
+    if (idEnEdition) {
+      try {
+        await updateDoc(doc(db, 'checklist', idEnEdition), {
+          nom: nouvelleTache.trim(),
+          categorie,
+          priorite,
+          echeance: echeance || null,
+          notes,
+          assigneA: assigneA || null
+        });
+        enregistrerHistorique(voyageId, `a modifié « ${nouvelleTache.trim()} » dans la Checklist`, auteurLabel);
+      } catch (error) {
+        console.error('Erreur de modification :', error);
+      }
+    } else {
+      await ajouterTache(nouvelleTache, { categorie, priorite, echeance, notes, assigneA });
+    }
+
+    resetFormulaire();
   };
 
   // Noms déjà présents dans la checklist, pour éviter les doublons quand on
@@ -354,6 +392,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const handleDelete = async (id) => {
     try {
       await deleteDoc(doc(db, 'checklist', id));
+      if (idEnEdition === id) resetFormulaire();
     } catch (error) {
       console.error('Erreur de suppression :', error);
     }
@@ -956,6 +995,14 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       )}
 
       <form onSubmit={handleAdd} style={styles.form}>
+        {idEnEdition && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 10px', backgroundColor: '#EEF2F0', borderRadius: '10px' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#6E8AA6' }}>✏️ Modification d'une tâche</span>
+            <button type="button" onClick={resetFormulaire} style={{ border: 'none', background: 'none', color: '#6E8AA6', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
+              Annuler
+            </button>
+          </div>
+        )}
         <div style={styles.formRow}>
           <input
             type="text"
@@ -965,8 +1012,8 @@ export function Checklist({ voyageId, voyage, currentUser }) {
             style={styles.input}
           />
 
-          <button type="submit" style={styles.submitButton} aria-label="Ajouter">
-            <IconPlus size={22} stroke={2.5} />
+          <button type="submit" style={styles.submitButton} aria-label={idEnEdition ? 'Enregistrer' : 'Ajouter'}>
+            <IconPlus size={22} stroke={2.5} style={{ transform: idEnEdition ? 'rotate(45deg)' : 'none', transition: 'transform 0.15s' }} />
           </button>
         </div>
 
@@ -1064,7 +1111,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
             const dateLabel = formatDate(tache.echeance);
 
             return (
-              <div key={tache.id} style={styles.item}>
+              <div key={tache.id} style={{ ...styles.item, ...(idEnEdition === tache.id ? { border: '1.5px solid #6E8AA6' } : {}) }}>
                 <div style={styles.itemTop}>
                   <div
                     onClick={() => (modeSelection ? toggleSelection(tache.id) : toggleFait(tache))}
@@ -1127,14 +1174,24 @@ export function Checklist({ voyageId, voyage, currentUser }) {
                     </div>
 
                     {!modeSelection && (
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(tache.id)}
-                        style={styles.deleteButton}
-                        aria-label="Supprimer la tâche"
-                      >
-                        <IconTrash size={19} color="#B5A793" />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => commencerEdition(tache)}
+                          style={styles.deleteButton}
+                          aria-label="Modifier la tâche"
+                        >
+                          <IconPencil size={17} color="#B5A793" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(tache.id)}
+                          style={styles.deleteButton}
+                          aria-label="Supprimer la tâche"
+                        >
+                          <IconTrash size={19} color="#B5A793" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
