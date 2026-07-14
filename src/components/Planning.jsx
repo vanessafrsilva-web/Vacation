@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../firebase';
-import { collection, query, where, getDocs, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import jsPDF from 'jspdf';
 import {
@@ -499,7 +499,11 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
       await updateDoc(doc(db, `voyages/${voyage.id}/activites`, idEnEdition), payload);
       enregistrerHistorique(voyage.id, `a modifié « ${titre} » dans le Planning`, currentUserNom);
     } else {
-      const docRef = await addDoc(collection(db, `voyages/${voyage.id}/activites`), payload);
+      const docRef = await addDoc(collection(db, `voyages/${voyage.id}/activites`), {
+        ...payload,
+        auteurId: currentUserId || null,
+        createdAt: serverTimestamp()
+      });
       idActivite = docRef.id;
       enregistrerHistorique(voyage.id, `a ajouté « ${titre} » au Planning`, currentUserNom);
     }
