@@ -181,6 +181,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const [assigneA, setAssigneA] = useState('');
 
   const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de la tâche modifiée
+  const [ongletActif, setOngletActif] = useState('commune'); // 'commune' | id d'un voyageur
 
   const [filtreCategorie, setFiltreCategorie] = useState('toutes');
   const [menuModeles, setMenuModeles] = useState(false);
@@ -240,6 +241,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
         nom: nom.trim(),
         fait: false,
         voyageId,
+        portee: extra.portee || ongletActif,
         categorie: extra.categorie || 'autre',
         priorite: extra.priorite || 'normal',
         echeance: extra.echeance || null,
@@ -302,11 +304,20 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     resetFormulaire();
   };
 
-  // Noms déjà présents dans la checklist, pour éviter les doublons quand on
-  // ouvre un modèle plusieurs fois
+  // Tâches de l'onglet actif uniquement (les tâches créées avant cette
+  // fonctionnalité n'ont pas de champ "portee" — elles sont traitées comme
+  // faisant partie de la liste "Commune" par défaut).
+  const tachesDuTab = useMemo(
+    () => taches.filter((t) => (t.portee || 'commune') === ongletActif),
+    [taches, ongletActif]
+  );
+
+  // Noms déjà présents dans la checklist DE L'ONGLET ACTIF, pour éviter les
+  // doublons quand on ouvre un modèle plusieurs fois — une tâche peut très
+  // bien exister à la fois dans "Commune" et dans une liste personnelle.
   const nomsExistants = useMemo(
-    () => new Set(taches.map((t) => t.nom.trim().toLowerCase())),
-    [taches]
+    () => new Set(tachesDuTab.map((t) => t.nom.trim().toLowerCase())),
+    [tachesDuTab]
   );
 
   const ouvrirModele = (cleModele) => {
@@ -399,12 +410,12 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   };
 
   const tachesFiltrees = useMemo(() => {
-    if (filtreCategorie === 'toutes') return taches;
-    return taches.filter((t) => (t.categorie || 'autre') === filtreCategorie);
-  }, [taches, filtreCategorie]);
+    if (filtreCategorie === 'toutes') return tachesDuTab;
+    return tachesDuTab.filter((t) => (t.categorie || 'autre') === filtreCategorie);
+  }, [tachesDuTab, filtreCategorie]);
 
-  const total = taches.length;
-  const faites = taches.filter((tache) => tache.fait).length;
+  const total = tachesDuTab.length;
+  const faites = tachesDuTab.filter((tache) => tache.fait).length;
   const progression = total === 0 ? 0 : Math.round((faites / total) * 100);
 
   const getCategorie = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
@@ -932,6 +943,41 @@ export function Checklist({ voyageId, voyage, currentUser }) {
         </div>
       </div>
 
+      {/* Onglets : liste commune + une liste personnelle par voyageur.
+          Chaque personne peut avoir sa propre checklist, en plus de la
+          liste commune partagée (billets, matériel du van, etc.) */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '16px' }}>
+        <button
+          type="button"
+          onClick={() => setOngletActif('commune')}
+          style={{
+            flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 15px', borderRadius: '999px',
+            fontSize: '13.5px', fontWeight: '800', cursor: 'pointer',
+            border: ongletActif === 'commune' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
+            backgroundColor: ongletActif === 'commune' ? '#F1E8D8' : '#FFFFFF',
+            color: ongletActif === 'commune' ? '#B8863C' : '#8A7B68'
+          }}
+        >
+          🤝 Commune
+        </button>
+        {voyageurs.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setOngletActif(v.id)}
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 15px', borderRadius: '999px',
+              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
+              border: ongletActif === v.id ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
+              backgroundColor: ongletActif === v.id ? '#F1E8D8' : '#FFFFFF',
+              color: ongletActif === v.id ? '#B8863C' : '#8A7B68'
+            }}
+          >
+            {v.avatar || '👤'} {v.id === currentUser?.uid ? 'Moi' : v.nom}
+          </button>
+        ))}
+      </div>
+
       {modeSelection && (
         <div style={styles.barreSelection}>
           <span style={styles.barreSelectionTexte}>
@@ -1093,7 +1139,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
 
         {!loading && total === 0 && (
           <div style={styles.emptyCard}>
-            Votre checklist est vide.<br />
+            Cette liste est vide.<br />
             Ajoutez une tâche ou choisissez un modèle ci-dessus.
           </div>
         )}
