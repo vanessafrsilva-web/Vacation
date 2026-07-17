@@ -236,17 +236,21 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const ajouterTache = async (nom, extra = {}) => {
     if (!nom.trim() || !voyageId) return;
 
+    // "Assigné à" détermine l'onglet : si personne n'est explicitement
+    // choisi dans le formulaire, on utilise l'onglet actuellement ouvert
+    // (donc "Moi" si on est sur mon onglet, personne si on est sur Commune).
+    const assigneAFinal = extra.assigneA || (ongletActif !== 'commune' ? ongletActif : null);
+
     try {
       await addDoc(collection(db, 'checklist'), {
         nom: nom.trim(),
         fait: false,
         voyageId,
-        portee: extra.portee || ongletActif,
         categorie: extra.categorie || 'autre',
         priorite: extra.priorite || 'normal',
         echeance: extra.echeance || null,
         notes: extra.notes || '',
-        assigneA: extra.assigneA || null,
+        assigneA: assigneAFinal,
         auteurId: currentUser?.uid || null,
         auteurNom: auteurLabel,
         createdAt: serverTimestamp()
@@ -304,11 +308,10 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     resetFormulaire();
   };
 
-  // Tâches de l'onglet actif uniquement (les tâches créées avant cette
-  // fonctionnalité n'ont pas de champ "portee" — elles sont traitées comme
-  // faisant partie de la liste "Commune" par défaut).
+  // Tâches de l'onglet actif : déterminé uniquement par "assigné à" — non
+  // assignée = Commune, assignée à quelqu'un = son onglet personnel.
   const tachesDuTab = useMemo(
-    () => taches.filter((t) => (t.portee || 'commune') === ongletActif),
+    () => taches.filter((t) => (t.assigneA || t.portee || 'commune') === ongletActif),
     [taches, ongletActif]
   );
 
