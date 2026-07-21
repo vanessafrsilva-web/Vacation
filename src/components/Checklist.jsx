@@ -22,7 +22,11 @@ import {
   IconChevronDown,
   IconCalendar,
   IconNote,
-  IconSparkles
+  IconSparkles,
+  IconDotsVertical,
+  IconDownload,
+  IconShare2,
+  IconLayoutGrid
 } from '@tabler/icons-react';
 
 // --- Constantes de configuration -------------------------------------------------
@@ -194,12 +198,32 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const [modeSelection, setModeSelection] = useState(false);
   const [selectionnees, setSelectionnees] = useState(new Set());
 
+  // Menu "..." (export / partage) + modale de choix de portée + vue groupée
+  const [menuActions, setMenuActions] = useState(false);
+  const [modaleExport, setModaleExport] = useState(null); // { mode: 'exporter' | 'partager' } ou null
+  const [vueGroupee, setVueGroupee] = useState(false);
+  const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(''), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const auteurLabel = currentUser?.nom || currentUser?.email || 'Anonyme';
 
   // Voyageurs du voyage, pour pouvoir assigner une tâche à quelqu'un précis
   const voyageurs = voyage?.voyageurs || [];
   const nomAssigne = (id) => voyageurs.find((v) => v.id === id)?.nom || null;
   const avatarAssigne = (id) => voyageurs.find((v) => v.id === id)?.avatar || null;
+
+  // Label + avatar d'un onglet (commune ou un voyageur précis), pour l'export/partage
+  const labelOnglet = (id) => {
+    if (id === 'commune') return { nom: 'Commune', avatar: '🤝' };
+    const v = voyageurs.find((vv) => vv.id === id);
+    if (!v) return { nom: 'Inconnu', avatar: '👤' };
+    return { nom: id === currentUser?.uid ? 'Moi' : v.nom, avatar: v.avatar || '👤' };
+  };
 
   useEffect(() => {
     if (!voyageId) return;
@@ -417,12 +441,102 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     return tachesDuTab.filter((t) => (t.categorie || 'autre') === filtreCategorie);
   }, [tachesDuTab, filtreCategorie]);
 
+  // Vue groupée par catégorie : chaque groupe trié en interne (à faire
+  // d'abord, puis par priorité urgent > normal > optionnel)
+  const tachesGroupees = useMemo(() => {
+    const ordrePriorite = { urgent: 0, normal: 1, optionnel: 2 };
+    return CATEGORIES.map((c) => {
+      const items = tachesFiltrees
+        .filter((t) => (t.categorie || 'autre') === c.id)
+        .sort((a, b) => {
+          if (a.fait !== b.fait) return a.fait ? 1 : -1;
+          return (ordrePriorite[a.priorite] ?? 1) - (ordrePriorite[b.priorite] ?? 1);
+        });
+      return { cat: c, taches: items };
+    }).filter((g) => g.taches.length > 0);
+  }, [tachesFiltrees]);
+
   const total = tachesDuTab.length;
   const faites = tachesDuTab.filter((tache) => tache.fait).length;
   const progression = total === 0 ? 0 : Math.round((faites / total) * 100);
 
   const getCategorie = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
   const getPriorite = (id) => PRIORITES.find((p) => p.id === id) || PRIORITES[1];
+
+  // --- Export texte (Notes) et partage (WhatsApp, etc.) ---
+
+  const genererBlocTexte = (tachesListe) => {
+    let texte = '';
+    CATEGORIES.forEach((c) => {
+      const items = tachesListe.filter((t) => (t.categorie || 'autre') === c.id);
+      if (items.length === 0) return;
+      texte += `\n${c.label.toUpperCase()}\n`;
+      items.forEach((t) => {
+        const coche = t.fait ? '☑' : '☐';
+        let ligne = `${coche} ${t.nom}`;
+        if (t.echeance) ligne += ` (${formatDate(t.echeance)})`;
+        if (t.notes) ligne += ` — ${t.notes}`;
+        texte += `${ligne}\n`;
+      });
+    });
+    return texte;
+  };
+
+  const genererTexteExport = (scope) => {
+    const titreVoyage = voyage?.nom || 'Voyage';
+
+    if (scope === 'global') {
+      const onglets = ['commune', ...voyageurs.map((v) => v.id)];
+      let texte = `🎒 Checklist — ${titreVoyage}\n`;
+      onglets.forEach((id) => {
+        const items = taches.filter((t) => (t.assigneA || t.portee || 'commune') === id);
+        if (items.length === 0) return;
+        const { nom, avatar } = labelOnglet(id);
+        texte += `\n\n=== ${avatar} ${nom} ===\n`;
+        texte += genererBlocTexte(items);
+      });
+      return texte;
+    }
+
+    const { nom, avatar } = labelOnglet(scope);
+    const items = taches.filter((t) => (t.assigneA || t.portee || 'commune') === scope);
+    let texte = `🎒 Checklist — ${titreVoyage} (${avatar} ${nom})\n`;
+    texte += genererBlocTexte(items);
+    return texte;
+  };
+
+  const executerExport = async (scope) => {
+    const texte = genererTexteExport(scope);
+    try {
+      await navigator.clipboard.writeText(texte);
+      setToast('📋 Copié ! Colle-le dans l\'app Notes');
+    } catch (error) {
+      console.error('Erreur de copie :', error);
+      setToast("Impossible de copier — réessaie");
+    }
+    setModaleExport(null);
+    setMenuActions(false);
+  };
+
+  const executerPartage = async (scope) => {
+    const texte = genererTexteExport(scope);
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Checklist voyage', text: texte });
+      } catch (error) {
+        // L'utilisateur a annulé le partage, rien à faire
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(texte);
+      } catch (error) {
+        console.error('Erreur de copie :', error);
+      }
+      window.open(`https://wa.me/?text=${encodeURIComponent(texte)}`, '_blank');
+    }
+    setModaleExport(null);
+    setMenuActions(false);
+  };
 
   const styles = {
     container: {
@@ -614,6 +728,18 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       padding: '9px 12px',
       cursor: 'pointer'
     },
+    menuIconButton: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: 'none',
+      backgroundColor: '#EEF2F0',
+      color: '#6E8AA6',
+      borderRadius: '12px',
+      width: '38px',
+      height: '38px',
+      cursor: 'pointer'
+    },
     modeleMenu: {
       position: 'relative'
     },
@@ -630,6 +756,8 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       minWidth: '190px'
     },
     modeleItem: {
+      display: 'flex',
+      alignItems: 'center',
       padding: '11px 14px',
       fontSize: '14px',
       fontWeight: 600,
@@ -691,6 +819,9 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     },
     filtreChip: (actif, couleur, bg) => ({
       flexShrink: 0,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
       padding: '7px 13px',
       borderRadius: '999px',
       fontSize: '13px',
@@ -701,6 +832,28 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       color: actif ? couleur : '#8A7B68',
       whiteSpace: 'nowrap'
     }),
+    groupeHeader: (couleur) => ({
+      fontSize: '12.5px',
+      fontWeight: 800,
+      color: couleur,
+      margin: '4px 2px 8px'
+    }),
+    toast: {
+      position: 'fixed',
+      bottom: '24px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: '#2B2420',
+      color: '#FFFFFF',
+      padding: '10px 16px',
+      borderRadius: '999px',
+      fontSize: '13px',
+      fontWeight: 700,
+      zIndex: 3000,
+      boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
+      maxWidth: '90vw',
+      textAlign: 'center'
+    },
     form: {
       backgroundColor: '#FFFFFF',
       border: '1px solid #E8DFCF',
@@ -899,6 +1052,108 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     }
   };
 
+  // Rendu d'une tâche : utilisé à la fois en vue liste et en vue groupée
+  const renderTache = (tache) => {
+    const cat = getCategorie(tache.categorie);
+    const prio = getPriorite(tache.priorite);
+    const dateLabel = formatDate(tache.echeance);
+
+    return (
+      <div key={tache.id} style={{ ...styles.item, ...(idEnEdition === tache.id ? { border: '1.5px solid #6E8AA6' } : {}) }}>
+        <div style={styles.itemTop}>
+          <div
+            onClick={() => (modeSelection ? toggleSelection(tache.id) : toggleFait(tache))}
+            style={styles.itemLeft}
+          >
+            {modeSelection ? (
+              <div style={{ ...styles.iconBox(cat.bg), padding: 0 }}>
+                <div style={styles.modaleCheckbox(selectionnees.has(tache.id))}>
+                  {selectionnees.has(tache.id) && '✓'}
+                </div>
+              </div>
+            ) : (
+              <div style={styles.iconBox(tache.fait ? '#F1E8D8' : cat.bg)}>
+                {tache.fait ? (
+                  <IconCircleCheckFilled size={23} color="#16C784" />
+                ) : (
+                  <IconCircle size={23} color={cat.color} />
+                )}
+              </div>
+            )}
+
+            <div style={styles.itemNameWrap}>
+              <span
+                style={{
+                  ...styles.itemName,
+                  ...(tache.fait ? styles.itemNameDone : {})
+                }}
+              >
+                {tache.nom}
+              </span>
+
+              <div style={styles.itemMeta}>
+                <span style={styles.badge(cat.color, cat.bg)}>{cat.label}</span>
+                {tache.priorite === 'urgent' && (
+                  <span style={styles.badge(prio.color, '#FEF2F2')}>{prio.label}</span>
+                )}
+                {dateLabel && (
+                  <span style={styles.metaText}>
+                    <IconCalendar size={11} />
+                    {dateLabel}
+                  </span>
+                )}
+                {tache.assigneA && nomAssigne(tache.assigneA) && (
+                  <span style={styles.badge('#6E8AA6', '#EEF2F0')}>
+                    {avatarAssigne(tache.assigneA) || '👤'} {nomAssigne(tache.assigneA)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Auteur de la tâche — rend la checklist lisible à
+                plusieurs quand le voyage est partagé */}
+            <div
+              style={styles.avatar}
+              title={`Ajouté par ${tache.auteurNom || 'Anonyme'}`}
+            >
+              {initiales(tache.auteurNom)}
+            </div>
+
+            {!modeSelection && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => commencerEdition(tache)}
+                  style={styles.deleteButton}
+                  aria-label="Modifier la tâche"
+                >
+                  <IconPencil size={17} color="#B5A793" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(tache.id)}
+                  style={styles.deleteButton}
+                  aria-label="Supprimer la tâche"
+                >
+                  <IconTrash size={19} color="#B5A793" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {tache.notes && (
+          <div style={styles.notesBox}>
+            <IconNote size={14} color="#B5A793" style={{ flexShrink: 0, marginTop: '1px' }} />
+            <span>{tache.notes}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -930,6 +1185,38 @@ export function Checklist({ voyageId, voyage, currentUser }) {
                   {modele.label}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Menu export / partage : demande toujours la portée (commune,
+            une personne, ou tout) avant d'agir */}
+        <div style={styles.modeleMenu}>
+          <button
+            type="button"
+            style={styles.menuIconButton}
+            onClick={() => setMenuActions((v) => !v)}
+            aria-label="Exporter ou partager"
+          >
+            <IconDotsVertical size={18} />
+          </button>
+
+          {menuActions && (
+            <div style={styles.modeleDropdown}>
+              <div
+                style={styles.modeleItem}
+                onClick={() => { setModaleExport({ mode: 'exporter' }); setMenuActions(false); }}
+              >
+                <IconDownload size={15} style={{ marginRight: '8px' }} />
+                Exporter (Notes)
+              </div>
+              <div
+                style={{ ...styles.modeleItem, borderBottom: 'none' }}
+                onClick={() => { setModaleExport({ mode: 'partager' }); setMenuActions(false); }}
+              >
+                <IconShare2 size={15} style={{ marginRight: '8px' }} />
+                Partager
+              </div>
             </div>
           )}
         </div>
@@ -1040,6 +1327,13 @@ export function Checklist({ voyageId, voyage, currentUser }) {
               {c.label}
             </div>
           ))}
+          <div
+            style={styles.filtreChip(vueGroupee, '#6E8AA6', '#EEF2F0')}
+            onClick={() => setVueGroupee((v) => !v)}
+          >
+            <IconLayoutGrid size={13} />
+            Grouper
+          </div>
         </div>
       )}
 
@@ -1153,107 +1447,22 @@ export function Checklist({ voyageId, voyage, currentUser }) {
           </div>
         )}
 
-        {!loading &&
-          tachesFiltrees.map((tache) => {
-            const cat = getCategorie(tache.categorie);
-            const prio = getPriorite(tache.priorite);
-            const dateLabel = formatDate(tache.echeance);
-
-            return (
-              <div key={tache.id} style={{ ...styles.item, ...(idEnEdition === tache.id ? { border: '1.5px solid #6E8AA6' } : {}) }}>
-                <div style={styles.itemTop}>
-                  <div
-                    onClick={() => (modeSelection ? toggleSelection(tache.id) : toggleFait(tache))}
-                    style={styles.itemLeft}
-                  >
-                    {modeSelection ? (
-                      <div style={{ ...styles.iconBox(cat.bg), padding: 0 }}>
-                        <div style={styles.modaleCheckbox(selectionnees.has(tache.id))}>
-                          {selectionnees.has(tache.id) && '✓'}
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={styles.iconBox(tache.fait ? '#F1E8D8' : cat.bg)}>
-                        {tache.fait ? (
-                          <IconCircleCheckFilled size={23} color="#16C784" />
-                        ) : (
-                          <IconCircle size={23} color={cat.color} />
-                        )}
-                      </div>
-                    )}
-
-                    <div style={styles.itemNameWrap}>
-                      <span
-                        style={{
-                          ...styles.itemName,
-                          ...(tache.fait ? styles.itemNameDone : {})
-                        }}
-                      >
-                        {tache.nom}
-                      </span>
-
-                      <div style={styles.itemMeta}>
-                        <span style={styles.badge(cat.color, cat.bg)}>{cat.label}</span>
-                        {tache.priorite === 'urgent' && (
-                          <span style={styles.badge(prio.color, '#FEF2F2')}>{prio.label}</span>
-                        )}
-                        {dateLabel && (
-                          <span style={styles.metaText}>
-                            <IconCalendar size={11} />
-                            {dateLabel}
-                          </span>
-                        )}
-                        {tache.assigneA && nomAssigne(tache.assigneA) && (
-                          <span style={styles.badge('#6E8AA6', '#EEF2F0')}>
-                            {avatarAssigne(tache.assigneA) || '👤'} {nomAssigne(tache.assigneA)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {/* Auteur de la tâche — rend la checklist lisible à
-                        plusieurs quand le voyage est partagé */}
-                    <div
-                      style={styles.avatar}
-                      title={`Ajouté par ${tache.auteurNom || 'Anonyme'}`}
-                    >
-                      {initiales(tache.auteurNom)}
-                    </div>
-
-                    {!modeSelection && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => commencerEdition(tache)}
-                          style={styles.deleteButton}
-                          aria-label="Modifier la tâche"
-                        >
-                          <IconPencil size={17} color="#B5A793" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(tache.id)}
-                          style={styles.deleteButton}
-                          aria-label="Supprimer la tâche"
-                        >
-                          <IconTrash size={19} color="#B5A793" />
-                        </button>
-                      </>
-                    )}
-                  </div>
+        {!loading && tachesFiltrees.length > 0 && (
+          vueGroupee ? (
+            tachesGroupees.map(({ cat, taches: items }) => (
+              <div key={cat.id} style={{ marginBottom: '6px' }}>
+                <div style={styles.groupeHeader(cat.color)}>
+                  {cat.label} · {items.length}
                 </div>
-
-                {tache.notes && (
-                  <div style={styles.notesBox}>
-                    <IconNote size={14} color="#B5A793" style={{ flexShrink: 0, marginTop: '1px' }} />
-                    <span>{tache.notes}</span>
-                  </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '14px' }}>
+                  {items.map((tache) => renderTache(tache))}
+                </div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            tachesFiltrees.map((tache) => renderTache(tache))
+          )
+        )}
       </div>
 
       {modaleModele && (
@@ -1312,6 +1521,49 @@ export function Checklist({ voyageId, voyage, currentUser }) {
           </div>
         </div>
       )}
+
+      {modaleExport && (
+        <div style={styles.overlay} onClick={() => setModaleExport(null)}>
+          <div style={styles.modaleCarte} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modaleHeader}>
+              <h3 style={styles.modaleTitre}>
+                {modaleExport.mode === 'exporter' ? 'Exporter la checklist' : 'Partager la checklist'}
+              </h3>
+              <button
+                type="button"
+                style={styles.modaleFermer}
+                onClick={() => setModaleExport(null)}
+                aria-label="Fermer"
+              >
+                ✕
+              </button>
+            </div>
+            <p style={styles.modaleSousTitre}>
+              {modaleExport.mode === 'exporter'
+                ? 'Choisis ce que tu veux copier pour Notes.'
+                : 'Choisis ce que tu veux partager.'}
+            </p>
+
+            {['commune', ...voyageurs.map((v) => v.id), 'global'].map((id) => {
+              const { nom, avatar } = id === 'global'
+                ? { nom: 'Tout (toutes les listes)', avatar: '📋' }
+                : labelOnglet(id);
+              return (
+                <div
+                  key={id}
+                  style={styles.modaleLigne}
+                  onClick={() => (modaleExport.mode === 'exporter' ? executerExport(id) : executerPartage(id))}
+                >
+                  <span style={{ fontSize: '18px' }}>{avatar}</span>
+                  <span style={styles.modaleLigneTexte}>{nom}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {toast && <div style={styles.toast}>{toast}</div>}
     </div>
   );
 }
