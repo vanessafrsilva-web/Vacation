@@ -21,7 +21,8 @@ import emailjs from '@emailjs/browser';
 import { Auth } from './components/Auth';
 import { Profil } from './components/Profil';
 import { Galerie } from './components/Galerie';
-import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2 } from '@tabler/icons-react';
+import { Perso } from './components/Perso';
+import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2, IconTool } from '@tabler/icons-react';
 
 function App() {
   const [appDemarree, setAppDemarree] = useState(false);
@@ -1144,6 +1145,10 @@ function App() {
     return <MesRestos utilisateur={utilisateur} monNom={monNom} onClose={() => setModuleActif(null)} />;
   }
 
+  if (moduleActif === 'perso') {
+    return <Perso utilisateur={utilisateur} onClose={() => setModuleActif(null)} />;
+  }
+
   // --- ÉCRAN D'ACCUEIL : choix entre les deux modules ---
   if (moduleActif === null) {
     return (
@@ -1191,6 +1196,23 @@ function App() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Papilles Nomades</div>
               <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Ton carnet de restos, partout dans le monde</div>
+            </div>
+            <IconArrowRight size={20} color="#B5A793" />
+          </div>
+
+          <div
+            onClick={() => setModuleActif('perso')}
+            style={{
+              backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+            }}
+          >
+            <div style={{ backgroundColor: '#EAF2EC', color: '#4A7C59', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+              <IconTool size={30} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</div>
+              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Entretien du van et tâches du quotidien</div>
             </div>
             <IconArrowRight size={20} color="#B5A793" />
           </div>
