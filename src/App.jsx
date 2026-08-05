@@ -1212,7 +1212,7 @@ function App() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</div>
-              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Entretien du van et tâches du quotidien</div>
+              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Entretien de la voiture et tâches du quotidien</div>
             </div>
             <IconArrowRight size={20} color="#B5A793" />
           </div>
