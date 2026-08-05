@@ -68,7 +68,7 @@ export function Perso({ utilisateur, onClose }) {
               color: ongletActif === 'van' ? '#B8863C' : '#8A7B68'
             }}
           >
-            <IconTool size={16} /> Mon Van
+            <IconTool size={16} /> Ma Voiture
           </button>
           <button
             onClick={() => setOngletActif('taches')}
@@ -221,6 +221,8 @@ function EntretienVan({ utilisateur }) {
 
   return (
     <div>
+      <p style={{ margin: '0 0 16px 0', fontSize: '12.5px', color: '#8A7B68', fontWeight: '600' }}>🚗 Mazda 3 Sky-Active</p>
+
       {rappelsActifs.length > 0 && (
         <div style={{ marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {rappelsActifs.map((r) => (
