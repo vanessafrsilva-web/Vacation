@@ -101,6 +101,7 @@ function EntretienVan({ utilisateur }) {
   const [idEnEdition, setIdEnEdition] = useState(null);
 
   const [type, setType] = useState('vidange');
+  const [fournisseur, setFournisseur] = useState('');
   const [date, setDate] = useState('');
   const [km, setKm] = useState('');
   const [notes, setNotes] = useState('');
@@ -121,8 +122,54 @@ function EntretienVan({ utilisateur }) {
     return () => unsub();
   }, [utilisateur?.uid]);
 
+  // --- "À faire" : petites choses en attente liées à la voiture, distinct
+  // de l'historique (déjà fait) et distinct de "Mes Tâches" (vie perso
+  // générale) — ex: "changer la clé", "prendre rdv pneus hiver".
+  const [aFaire, setAFaire] = useState([]);
+  const [nouvelleAFaire, setNouvelleAFaire] = useState('');
+
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const q = query(collection(db, 'taches_van'), where('uid', '==', utilisateur.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => (a.fait === b.fait ? 0 : a.fait ? 1 : -1));
+      setAFaire(data);
+    });
+    return () => unsub();
+  }, [utilisateur?.uid]);
+
+  const ajouterAFaire = async (e) => {
+    e.preventDefault();
+    if (!nouvelleAFaire.trim()) return;
+    try {
+      await addDoc(collection(db, 'taches_van'), {
+        nom: nouvelleAFaire.trim(), fait: false, uid: utilisateur.uid, createdAt: serverTimestamp()
+      });
+      setNouvelleAFaire('');
+    } catch (error) {
+      console.error("Erreur d'ajout :", error);
+    }
+  };
+
+  const toggleAFaire = async (t) => {
+    try {
+      await updateDoc(doc(db, 'taches_van', t.id), { fait: !t.fait });
+    } catch (error) {
+      console.error('Erreur de mise à jour :', error);
+    }
+  };
+
+  const supprimerAFaire = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'taches_van', id));
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
   const resetForm = () => {
-    setType('vidange'); setDate(''); setKm(''); setNotes(''); setCout(''); setRappel('');
+    setType('vidange'); setDate(''); setKm(''); setNotes(''); setCout(''); setFournisseur(''); setRappel('');
     setPhotoPreview(null); setPhotoStoragePath(null); setIdEnEdition(null); setShowForm(false);
   };
 
@@ -168,6 +215,7 @@ function EntretienVan({ utilisateur }) {
   const commencerEdition = (entree) => {
     setType(entree.type); setDate(entree.date); setKm(entree.km ? String(entree.km) : '');
     setNotes(entree.notes || ''); setCout(entree.cout ? String(entree.cout) : '');
+    setFournisseur(entree.fournisseur || '');
     setRappel(entree.rappel || ''); setPhotoPreview(entree.photoUrl || null);
     setPhotoStoragePath(entree.photoStoragePath || null);
     setIdEnEdition(entree.id); setShowForm(true);
@@ -177,7 +225,7 @@ function EntretienVan({ utilisateur }) {
     e.preventDefault();
     if (!date) return;
     const payload = {
-      type, date, km: km ? parseInt(km, 10) : null, notes,
+      type, date, km: km ? parseInt(km, 10) : null, notes, fournisseur: fournisseur || null,
       cout: cout ? parseFloat(cout) : null, rappel: rappel || null,
       photoUrl: photoPreview || null, photoStoragePath: photoStoragePath || null
     };
@@ -217,11 +265,45 @@ function EntretienVan({ utilisateur }) {
       .sort((a, b) => a.rappel.localeCompare(b.rappel));
   }, [entrees]);
 
+  const totalDepense = useMemo(() => entrees.reduce((somme, e) => somme + (e.cout || 0), 0), [entrees]);
+
   const inputStyle = { width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
 
   return (
     <div>
       <p style={{ margin: '0 0 16px 0', fontSize: '12.5px', color: '#8A7B68', fontWeight: '600' }}>🚗 Mazda 3 Sky-Active</p>
+
+      {totalDepense > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderRadius: '14px', backgroundColor: '#2B2420', marginBottom: '16px' }}>
+          <span style={{ fontSize: '13px', color: '#D9CDB8', fontWeight: '700' }}>Total dépensé en entretien</span>
+          <span style={{ fontSize: '16px', color: '#FFFFFF', fontWeight: '800' }}>{totalDepense.toFixed(2)} CHF</span>
+        </div>
+      )}
+
+      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '16px', padding: '14px', marginBottom: '20px' }}>
+        <p style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: '800', color: '#2B2420' }}>🔧 À faire</p>
+        {aFaire.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '10px' }}>
+            {aFaire.map((t) => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '8px 10px', backgroundColor: '#F7F1E8', borderRadius: '11px' }}>
+                <div onClick={() => toggleAFaire(t)} style={{ cursor: 'pointer', display: 'flex' }}>
+                  {t.fait ? <IconCircleCheckFilled size={19} color="#16C784" /> : <IconCircle size={19} color="#B5A793" />}
+                </div>
+                <span onClick={() => toggleAFaire(t)} style={{ flex: 1, fontSize: '13.5px', fontWeight: '600', color: t.fait ? '#B5A793' : '#2B2420', textDecoration: t.fait ? 'line-through' : 'none', cursor: 'pointer' }}>
+                  {t.nom}
+                </span>
+                <button onClick={() => supprimerAFaire(t.id)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '3px' }}><IconTrash size={15} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <form onSubmit={ajouterAFaire} style={{ display: 'flex', gap: '7px' }}>
+          <input type="text" placeholder="ex: Changer la clé" value={nouvelleAFaire} onChange={(e) => setNouvelleAFaire(e.target.value)} style={{ flex: 1, padding: '9px 11px', borderRadius: '10px', border: '1px solid #E8DFCF', fontSize: '13.5px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          <button type="submit" style={{ width: '38px', border: 'none', backgroundColor: '#B8863C', color: '#FFF', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <IconPlus size={17} />
+          </button>
+        </form>
+      </div>
 
       {rappelsActifs.length > 0 && (
         <div style={{ marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -265,7 +347,10 @@ function EntretienVan({ utilisateur }) {
           <input type="number" placeholder="ex: 84500" value={km} onChange={(e) => setKm(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} />
 
           <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Notes</label>
-          <input type="text" placeholder="ex: 4 pneus Michelin, garage Dupont" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} />
+          <input type="text" placeholder="ex: 4 pneus Michelin" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Garage / Mécano</label>
+          <input type="text" placeholder="ex: EuroMaster Lausanne" value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} />
 
           <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
             <div style={{ flex: 1 }}>
@@ -320,6 +405,11 @@ function EntretienVan({ utilisateur }) {
                       {e.km && <span style={{ fontSize: '12px', color: '#8A7B68', display: 'flex', alignItems: 'center', gap: '3px' }}><IconGauge size={12} /> {e.km.toLocaleString('fr-CH')} km</span>}
                       {e.cout && <span style={{ fontSize: '12px', color: '#8A7B68', fontWeight: '700' }}>{e.cout.toFixed(2)} CHF</span>}
                     </div>
+                    {e.fournisseur && (
+                      <span style={{ display: 'inline-block', marginTop: '6px', fontSize: '11px', fontWeight: '700', color: '#6E8AA6', backgroundColor: '#EEF2F0', padding: '2px 8px', borderRadius: '999px' }}>
+                        🔧 {e.fournisseur}
+                      </span>
+                    )}
                     {e.notes && <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#475569' }}>{e.notes}</p>}
                   </div>
                   <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
