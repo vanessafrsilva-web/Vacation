@@ -23,10 +23,9 @@ import {
   IconCalendar,
   IconNote,
   IconSparkles,
-  IconDotsVertical,
-  IconDownload,
-  IconShare2,
-  IconLayoutGrid
+  IconEye,
+  IconEyeOff,
+  IconSortAscending
 } from '@tabler/icons-react';
 
 // --- Constantes de configuration -------------------------------------------------
@@ -188,6 +187,8 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const [ongletActif, setOngletActif] = useState('commune'); // 'commune' | id d'un voyageur
 
   const [filtreCategorie, setFiltreCategorie] = useState('toutes');
+  const [afficherTerminees, setAfficherTerminees] = useState(false); // masquées par défaut, pour alléger la liste
+  const [triAlpha, setTriAlpha] = useState(false);
   const [menuModeles, setMenuModeles] = useState(false);
 
   // Popup de prévisualisation d'un modèle : on choisit ce qu'on veut vraiment ajouter
@@ -198,32 +199,12 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const [modeSelection, setModeSelection] = useState(false);
   const [selectionnees, setSelectionnees] = useState(new Set());
 
-  // Menu "..." (export / partage) + modale de choix de portée + vue groupée
-  const [menuActions, setMenuActions] = useState(false);
-  const [modaleExport, setModaleExport] = useState(null); // { mode: 'exporter' | 'partager' } ou null
-  const [vueGroupee, setVueGroupee] = useState(false);
-  const [toast, setToast] = useState('');
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(''), 2600);
-    return () => clearTimeout(t);
-  }, [toast]);
-
   const auteurLabel = currentUser?.nom || currentUser?.email || 'Anonyme';
 
   // Voyageurs du voyage, pour pouvoir assigner une tâche à quelqu'un précis
   const voyageurs = voyage?.voyageurs || [];
   const nomAssigne = (id) => voyageurs.find((v) => v.id === id)?.nom || null;
   const avatarAssigne = (id) => voyageurs.find((v) => v.id === id)?.avatar || null;
-
-  // Label + avatar d'un onglet (commune ou un voyageur précis), pour l'export/partage
-  const labelOnglet = (id) => {
-    if (id === 'commune') return { nom: 'Commune', avatar: '🤝' };
-    const v = voyageurs.find((vv) => vv.id === id);
-    if (!v) return { nom: 'Inconnu', avatar: '👤' };
-    return { nom: id === currentUser?.uid ? 'Moi' : v.nom, avatar: v.avatar || '👤' };
-  };
 
   useEffect(() => {
     if (!voyageId) return;
@@ -416,6 +397,10 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   };
 
   const toggleFait = async (tache) => {
+    // On ne demande confirmation que pour cocher (pas pour décocher) — un
+    // clic accidentel qui marque une tâche comme faite est plus gênant
+    // qu'un clic qui la remet simplement en attente.
+    if (!tache.fait && !window.confirm(`Marquer « ${tache.nom} » comme fait ?`)) return;
     try {
       await updateDoc(doc(db, 'checklist', tache.id), {
         fait: !tache.fait,
@@ -437,24 +422,13 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   };
 
   const tachesFiltrees = useMemo(() => {
-    if (filtreCategorie === 'toutes') return tachesDuTab;
-    return tachesDuTab.filter((t) => (t.categorie || 'autre') === filtreCategorie);
-  }, [tachesDuTab, filtreCategorie]);
+    let liste = filtreCategorie === 'toutes' ? tachesDuTab : tachesDuTab.filter((t) => (t.categorie || 'autre') === filtreCategorie);
+    if (!afficherTerminees) liste = liste.filter((t) => !t.fait);
+    if (triAlpha) liste = [...liste].sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }));
+    return liste;
+  }, [tachesDuTab, filtreCategorie, afficherTerminees, triAlpha]);
 
-  // Vue groupée par catégorie : chaque groupe trié en interne (à faire
-  // d'abord, puis par priorité urgent > normal > optionnel)
-  const tachesGroupees = useMemo(() => {
-    const ordrePriorite = { urgent: 0, normal: 1, optionnel: 2 };
-    return CATEGORIES.map((c) => {
-      const items = tachesFiltrees
-        .filter((t) => (t.categorie || 'autre') === c.id)
-        .sort((a, b) => {
-          if (a.fait !== b.fait) return a.fait ? 1 : -1;
-          return (ordrePriorite[a.priorite] ?? 1) - (ordrePriorite[b.priorite] ?? 1);
-        });
-      return { cat: c, taches: items };
-    }).filter((g) => g.taches.length > 0);
-  }, [tachesFiltrees]);
+  const nombreTerminees = tachesDuTab.filter((t) => t.fait).length;
 
   const total = tachesDuTab.length;
   const faites = tachesDuTab.filter((tache) => tache.fait).length;
@@ -462,81 +436,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
 
   const getCategorie = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
   const getPriorite = (id) => PRIORITES.find((p) => p.id === id) || PRIORITES[1];
-
-  // --- Export texte (Notes) et partage (WhatsApp, etc.) ---
-
-  const genererBlocTexte = (tachesListe) => {
-    let texte = '';
-    CATEGORIES.forEach((c) => {
-      const items = tachesListe.filter((t) => (t.categorie || 'autre') === c.id);
-      if (items.length === 0) return;
-      texte += `\n${c.label.toUpperCase()}\n`;
-      items.forEach((t) => {
-        const coche = t.fait ? '☑' : '☐';
-        let ligne = `${coche} ${t.nom}`;
-        if (t.echeance) ligne += ` (${formatDate(t.echeance)})`;
-        if (t.notes) ligne += ` — ${t.notes}`;
-        texte += `${ligne}\n`;
-      });
-    });
-    return texte;
-  };
-
-  const genererTexteExport = (scope) => {
-    const titreVoyage = voyage?.nom || 'Voyage';
-
-    if (scope === 'global') {
-      const onglets = ['commune', ...voyageurs.map((v) => v.id)];
-      let texte = `🎒 Checklist — ${titreVoyage}\n`;
-      onglets.forEach((id) => {
-        const items = taches.filter((t) => (t.assigneA || t.portee || 'commune') === id);
-        if (items.length === 0) return;
-        const { nom, avatar } = labelOnglet(id);
-        texte += `\n\n=== ${avatar} ${nom} ===\n`;
-        texte += genererBlocTexte(items);
-      });
-      return texte;
-    }
-
-    const { nom, avatar } = labelOnglet(scope);
-    const items = taches.filter((t) => (t.assigneA || t.portee || 'commune') === scope);
-    let texte = `🎒 Checklist — ${titreVoyage} (${avatar} ${nom})\n`;
-    texte += genererBlocTexte(items);
-    return texte;
-  };
-
-  const executerExport = async (scope) => {
-    const texte = genererTexteExport(scope);
-    try {
-      await navigator.clipboard.writeText(texte);
-      setToast('📋 Copié ! Colle-le dans l\'app Notes');
-    } catch (error) {
-      console.error('Erreur de copie :', error);
-      setToast("Impossible de copier — réessaie");
-    }
-    setModaleExport(null);
-    setMenuActions(false);
-  };
-
-  const executerPartage = async (scope) => {
-    const texte = genererTexteExport(scope);
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Checklist voyage', text: texte });
-      } catch (error) {
-        // L'utilisateur a annulé le partage, rien à faire
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(texte);
-      } catch (error) {
-        console.error('Erreur de copie :', error);
-      }
-      window.open(`https://wa.me/?text=${encodeURIComponent(texte)}`, '_blank');
-    }
-    setModaleExport(null);
-    setMenuActions(false);
-  };
 
   const styles = {
     container: {
@@ -728,18 +627,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       padding: '9px 12px',
       cursor: 'pointer'
     },
-    menuIconButton: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      border: 'none',
-      backgroundColor: '#EEF2F0',
-      color: '#6E8AA6',
-      borderRadius: '12px',
-      width: '38px',
-      height: '38px',
-      cursor: 'pointer'
-    },
     modeleMenu: {
       position: 'relative'
     },
@@ -756,8 +643,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       minWidth: '190px'
     },
     modeleItem: {
-      display: 'flex',
-      alignItems: 'center',
       padding: '11px 14px',
       fontSize: '14px',
       fontWeight: 600,
@@ -819,9 +704,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     },
     filtreChip: (actif, couleur, bg) => ({
       flexShrink: 0,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '4px',
       padding: '7px 13px',
       borderRadius: '999px',
       fontSize: '13px',
@@ -832,28 +714,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       color: actif ? couleur : '#8A7B68',
       whiteSpace: 'nowrap'
     }),
-    groupeHeader: (couleur) => ({
-      fontSize: '12.5px',
-      fontWeight: 800,
-      color: couleur,
-      margin: '4px 2px 8px'
-    }),
-    toast: {
-      position: 'fixed',
-      bottom: '24px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      backgroundColor: '#2B2420',
-      color: '#FFFFFF',
-      padding: '10px 16px',
-      borderRadius: '999px',
-      fontSize: '13px',
-      fontWeight: 700,
-      zIndex: 3000,
-      boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
-      maxWidth: '90vw',
-      textAlign: 'center'
-    },
     form: {
       backgroundColor: '#FFFFFF',
       border: '1px solid #E8DFCF',
@@ -935,7 +795,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     list: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '12px'
+      gap: '8px'
     },
     emptyCard: {
       backgroundColor: '#FFFFFF',
@@ -950,9 +810,9 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     item: {
       backgroundColor: '#FFFFFF',
       border: '1px solid #E8DFCF',
-      borderRadius: '18px',
-      padding: '15px',
-      boxShadow: '0 8px 24px rgba(43, 36, 32, 0.06)'
+      borderRadius: '15px',
+      padding: '10px 12px',
+      boxShadow: '0 4px 14px rgba(43, 36, 32, 0.05)'
     },
     itemTop: {
       display: 'flex',
@@ -967,21 +827,21 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       minWidth: 0
     },
     iconBox: (bg) => ({
-      width: '38px',
-      height: '38px',
-      borderRadius: '13px',
+      width: '30px',
+      height: '30px',
+      borderRadius: '10px',
       backgroundColor: bg,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: '13px',
+      marginRight: '10px',
       flexShrink: 0
     }),
     itemNameWrap: {
       minWidth: 0
     },
     itemName: {
-      fontSize: '15px',
+      fontSize: '13.5px',
       fontWeight: 700,
       color: '#2B2420',
       whiteSpace: 'nowrap',
@@ -996,20 +856,20 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     itemMeta: {
       display: 'flex',
       alignItems: 'center',
-      gap: '6px',
-      marginTop: '3px',
+      gap: '5px',
+      marginTop: '2px',
       flexWrap: 'wrap'
     },
     badge: (couleur, bg) => ({
-      fontSize: '11px',
+      fontSize: '9.5px',
       fontWeight: 700,
       color: couleur,
       backgroundColor: bg,
-      padding: '2px 7px',
+      padding: '1px 6px',
       borderRadius: '999px'
     }),
     metaText: {
-      fontSize: '11px',
+      fontSize: '9.5px',
       color: '#B5A793',
       display: 'flex',
       alignItems: 'center',
@@ -1027,12 +887,12 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       flexShrink: 0
     },
     avatar: {
-      width: '22px',
-      height: '22px',
+      width: '19px',
+      height: '19px',
       borderRadius: '999px',
       backgroundColor: '#2B2420',
       color: '#FFFFFF',
-      fontSize: '9px',
+      fontSize: '8px',
       fontWeight: 800,
       display: 'flex',
       alignItems: 'center',
@@ -1040,118 +900,16 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       flexShrink: 0
     },
     notesBox: {
-      marginTop: '10px',
-      padding: '9px 11px',
+      marginTop: '7px',
+      padding: '7px 9px',
       backgroundColor: '#F7F1E8',
-      borderRadius: '10px',
-      fontSize: '12.5px',
+      borderRadius: '9px',
+      fontSize: '11.5px',
       color: '#475569',
       display: 'flex',
-      gap: '6px',
+      gap: '5px',
       alignItems: 'flex-start'
     }
-  };
-
-  // Rendu d'une tâche : utilisé à la fois en vue liste et en vue groupée
-  const renderTache = (tache) => {
-    const cat = getCategorie(tache.categorie);
-    const prio = getPriorite(tache.priorite);
-    const dateLabel = formatDate(tache.echeance);
-
-    return (
-      <div key={tache.id} style={{ ...styles.item, ...(idEnEdition === tache.id ? { border: '1.5px solid #6E8AA6' } : {}) }}>
-        <div style={styles.itemTop}>
-          <div
-            onClick={() => (modeSelection ? toggleSelection(tache.id) : toggleFait(tache))}
-            style={styles.itemLeft}
-          >
-            {modeSelection ? (
-              <div style={{ ...styles.iconBox(cat.bg), padding: 0 }}>
-                <div style={styles.modaleCheckbox(selectionnees.has(tache.id))}>
-                  {selectionnees.has(tache.id) && '✓'}
-                </div>
-              </div>
-            ) : (
-              <div style={styles.iconBox(tache.fait ? '#F1E8D8' : cat.bg)}>
-                {tache.fait ? (
-                  <IconCircleCheckFilled size={23} color="#16C784" />
-                ) : (
-                  <IconCircle size={23} color={cat.color} />
-                )}
-              </div>
-            )}
-
-            <div style={styles.itemNameWrap}>
-              <span
-                style={{
-                  ...styles.itemName,
-                  ...(tache.fait ? styles.itemNameDone : {})
-                }}
-              >
-                {tache.nom}
-              </span>
-
-              <div style={styles.itemMeta}>
-                <span style={styles.badge(cat.color, cat.bg)}>{cat.label}</span>
-                {tache.priorite === 'urgent' && (
-                  <span style={styles.badge(prio.color, '#FEF2F2')}>{prio.label}</span>
-                )}
-                {dateLabel && (
-                  <span style={styles.metaText}>
-                    <IconCalendar size={11} />
-                    {dateLabel}
-                  </span>
-                )}
-                {tache.assigneA && nomAssigne(tache.assigneA) && (
-                  <span style={styles.badge('#6E8AA6', '#EEF2F0')}>
-                    {avatarAssigne(tache.assigneA) || '👤'} {nomAssigne(tache.assigneA)}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Auteur de la tâche — rend la checklist lisible à
-                plusieurs quand le voyage est partagé */}
-            <div
-              style={styles.avatar}
-              title={`Ajouté par ${tache.auteurNom || 'Anonyme'}`}
-            >
-              {initiales(tache.auteurNom)}
-            </div>
-
-            {!modeSelection && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => commencerEdition(tache)}
-                  style={styles.deleteButton}
-                  aria-label="Modifier la tâche"
-                >
-                  <IconPencil size={17} color="#B5A793" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(tache.id)}
-                  style={styles.deleteButton}
-                  aria-label="Supprimer la tâche"
-                >
-                  <IconTrash size={19} color="#B5A793" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {tache.notes && (
-          <div style={styles.notesBox}>
-            <IconNote size={14} color="#B5A793" style={{ flexShrink: 0, marginTop: '1px' }} />
-            <span>{tache.notes}</span>
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -1185,38 +943,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
                   {modele.label}
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-
-        {/* Menu export / partage : demande toujours la portée (commune,
-            une personne, ou tout) avant d'agir */}
-        <div style={styles.modeleMenu}>
-          <button
-            type="button"
-            style={styles.menuIconButton}
-            onClick={() => setMenuActions((v) => !v)}
-            aria-label="Exporter ou partager"
-          >
-            <IconDotsVertical size={18} />
-          </button>
-
-          {menuActions && (
-            <div style={styles.modeleDropdown}>
-              <div
-                style={styles.modeleItem}
-                onClick={() => { setModaleExport({ mode: 'exporter' }); setMenuActions(false); }}
-              >
-                <IconDownload size={15} style={{ marginRight: '8px' }} />
-                Exporter (Notes)
-              </div>
-              <div
-                style={{ ...styles.modeleItem, borderBottom: 'none' }}
-                onClick={() => { setModaleExport({ mode: 'partager' }); setMenuActions(false); }}
-              >
-                <IconShare2 size={15} style={{ marginRight: '8px' }} />
-                Partager
-              </div>
             </div>
           )}
         </div>
@@ -1311,6 +1037,38 @@ export function Checklist({ voyageId, voyage, currentUser }) {
       </div>
 
       {total > 0 && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+          <button
+            type="button"
+            onClick={() => setAfficherTerminees((v) => !v)}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', borderRadius: '11px',
+              fontSize: '12.5px', fontWeight: '700', cursor: 'pointer',
+              border: afficherTerminees ? '1.5px solid #16C784' : '1.5px solid #E8DFCF',
+              backgroundColor: afficherTerminees ? '#F0FDF4' : '#FFFFFF',
+              color: afficherTerminees ? '#16A874' : '#8A7B68'
+            }}
+          >
+            {afficherTerminees ? <IconEyeOff size={15} /> : <IconEye size={15} />}
+            {afficherTerminees ? 'Masquer terminées' : `Voir terminées${nombreTerminees > 0 ? ` (${nombreTerminees})` : ''}`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTriAlpha((v) => !v)}
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 13px', borderRadius: '11px',
+              fontSize: '12.5px', fontWeight: '700', cursor: 'pointer',
+              border: triAlpha ? '1.5px solid #6E8AA6' : '1.5px solid #E8DFCF',
+              backgroundColor: triAlpha ? '#EEF2F0' : '#FFFFFF',
+              color: triAlpha ? '#6E8AA6' : '#8A7B68'
+            }}
+          >
+            <IconSortAscending size={15} /> A→Z
+          </button>
+        </div>
+      )}
+
+      {total > 0 && (
         <div style={styles.filtres}>
           <div
             style={styles.filtreChip(filtreCategorie === 'toutes', '#2B2420', '#F1E8D8')}
@@ -1327,13 +1085,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
               {c.label}
             </div>
           ))}
-          <div
-            style={styles.filtreChip(vueGroupee, '#6E8AA6', '#EEF2F0')}
-            onClick={() => setVueGroupee((v) => !v)}
-          >
-            <IconLayoutGrid size={13} />
-            Grouper
-          </div>
         </div>
       )}
 
@@ -1447,22 +1198,107 @@ export function Checklist({ voyageId, voyage, currentUser }) {
           </div>
         )}
 
-        {!loading && tachesFiltrees.length > 0 && (
-          vueGroupee ? (
-            tachesGroupees.map(({ cat, taches: items }) => (
-              <div key={cat.id} style={{ marginBottom: '6px' }}>
-                <div style={styles.groupeHeader(cat.color)}>
-                  {cat.label} · {items.length}
+        {!loading &&
+          tachesFiltrees.map((tache) => {
+            const cat = getCategorie(tache.categorie);
+            const prio = getPriorite(tache.priorite);
+            const dateLabel = formatDate(tache.echeance);
+
+            return (
+              <div key={tache.id} style={{ ...styles.item, ...(idEnEdition === tache.id ? { border: '1.5px solid #6E8AA6' } : {}) }}>
+                <div style={styles.itemTop}>
+                  <div
+                    onClick={() => (modeSelection ? toggleSelection(tache.id) : toggleFait(tache))}
+                    style={styles.itemLeft}
+                  >
+                    {modeSelection ? (
+                      <div style={{ ...styles.iconBox(cat.bg), padding: 0 }}>
+                        <div style={styles.modaleCheckbox(selectionnees.has(tache.id))}>
+                          {selectionnees.has(tache.id) && '✓'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={styles.iconBox(tache.fait ? '#F1E8D8' : cat.bg)}>
+                        {tache.fait ? (
+                          <IconCircleCheckFilled size={19} color="#16C784" />
+                        ) : (
+                          <IconCircle size={19} color={cat.color} />
+                        )}
+                      </div>
+                    )}
+
+                    <div style={styles.itemNameWrap}>
+                      <span
+                        style={{
+                          ...styles.itemName,
+                          ...(tache.fait ? styles.itemNameDone : {})
+                        }}
+                      >
+                        {tache.nom}
+                      </span>
+
+                      <div style={styles.itemMeta}>
+                        <span style={styles.badge(cat.color, cat.bg)}>{cat.label}</span>
+                        {tache.priorite === 'urgent' && (
+                          <span style={styles.badge(prio.color, '#FEF2F2')}>{prio.label}</span>
+                        )}
+                        {dateLabel && (
+                          <span style={styles.metaText}>
+                            <IconCalendar size={11} />
+                            {dateLabel}
+                          </span>
+                        )}
+                        {tache.assigneA && nomAssigne(tache.assigneA) && (
+                          <span style={styles.badge('#6E8AA6', '#EEF2F0')}>
+                            {avatarAssigne(tache.assigneA) || '👤'} {nomAssigne(tache.assigneA)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* Auteur de la tâche — rend la checklist lisible à
+                        plusieurs quand le voyage est partagé */}
+                    <div
+                      style={styles.avatar}
+                      title={`Ajouté par ${tache.auteurNom || 'Anonyme'}`}
+                    >
+                      {initiales(tache.auteurNom)}
+                    </div>
+
+                    {!modeSelection && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => commencerEdition(tache)}
+                          style={styles.deleteButton}
+                          aria-label="Modifier la tâche"
+                        >
+                          <IconPencil size={17} color="#B5A793" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(tache.id)}
+                          style={styles.deleteButton}
+                          aria-label="Supprimer la tâche"
+                        >
+                          <IconTrash size={19} color="#B5A793" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '14px' }}>
-                  {items.map((tache) => renderTache(tache))}
-                </div>
+
+                {tache.notes && (
+                  <div style={styles.notesBox}>
+                    <IconNote size={14} color="#B5A793" style={{ flexShrink: 0, marginTop: '1px' }} />
+                    <span>{tache.notes}</span>
+                  </div>
+                )}
               </div>
-            ))
-          ) : (
-            tachesFiltrees.map((tache) => renderTache(tache))
-          )
-        )}
+            );
+          })}
       </div>
 
       {modaleModele && (
@@ -1521,49 +1357,6 @@ export function Checklist({ voyageId, voyage, currentUser }) {
           </div>
         </div>
       )}
-
-      {modaleExport && (
-        <div style={styles.overlay} onClick={() => setModaleExport(null)}>
-          <div style={styles.modaleCarte} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modaleHeader}>
-              <h3 style={styles.modaleTitre}>
-                {modaleExport.mode === 'exporter' ? 'Exporter la checklist' : 'Partager la checklist'}
-              </h3>
-              <button
-                type="button"
-                style={styles.modaleFermer}
-                onClick={() => setModaleExport(null)}
-                aria-label="Fermer"
-              >
-                ✕
-              </button>
-            </div>
-            <p style={styles.modaleSousTitre}>
-              {modaleExport.mode === 'exporter'
-                ? 'Choisis ce que tu veux copier pour Notes.'
-                : 'Choisis ce que tu veux partager.'}
-            </p>
-
-            {['commune', ...voyageurs.map((v) => v.id), 'global'].map((id) => {
-              const { nom, avatar } = id === 'global'
-                ? { nom: 'Tout (toutes les listes)', avatar: '📋' }
-                : labelOnglet(id);
-              return (
-                <div
-                  key={id}
-                  style={styles.modaleLigne}
-                  onClick={() => (modaleExport.mode === 'exporter' ? executerExport(id) : executerPartage(id))}
-                >
-                  <span style={{ fontSize: '18px' }}>{avatar}</span>
-                  <span style={styles.modaleLigneTexte}>{nom}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {toast && <div style={styles.toast}>{toast}</div>}
     </div>
   );
 }
