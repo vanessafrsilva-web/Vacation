@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../firebase';
 import { enregistrerHistorique } from '../historique';
 import {
@@ -23,9 +23,8 @@ import {
   IconCalendar,
   IconNote,
   IconSparkles,
-  IconEye,
-  IconEyeOff,
-  IconSortAscending
+  IconSortAscending,
+  IconFileExport
 } from '@tabler/icons-react';
 
 // --- Constantes de configuration -------------------------------------------------
@@ -187,7 +186,7 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   const [ongletActif, setOngletActif] = useState('commune'); // 'commune' | id d'un voyageur
 
   const [filtreCategorie, setFiltreCategorie] = useState('toutes');
-  const [afficherTerminees, setAfficherTerminees] = useState(false); // masquées par défaut, pour alléger la liste
+  const [vueStatut, setVueStatut] = useState('actives'); // 'actives' | 'terminees'
   const [triAlpha, setTriAlpha] = useState(false);
   const [menuModeles, setMenuModeles] = useState(false);
 
@@ -286,6 +285,33 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     setAssigneA(tache.assigneA || '');
     setIdEnEdition(tache.id);
     setDetailsOuverts(true);
+  };
+
+  // Copie une tâche existante vers un autre onglet (elle reste aussi dans
+  // l'onglet d'origine) — pratique pour un truc qui concerne à la fois la
+  // liste commune et la liste de quelqu'un en particulier.
+  const dupliquerVers = async (idCible) => {
+    if (!idEnEdition) return;
+    const original = taches.find((t) => t.id === idEnEdition);
+    if (!original) return;
+    try {
+      await addDoc(collection(db, 'checklist'), {
+        nom: original.nom,
+        fait: false,
+        voyageId,
+        categorie: original.categorie || 'autre',
+        priorite: original.priorite || 'normal',
+        echeance: original.echeance || null,
+        notes: original.notes || '',
+        assigneA: idCible === 'commune' ? null : idCible,
+        auteurId: currentUser?.uid || null,
+        auteurNom: auteurLabel,
+        createdAt: serverTimestamp()
+      });
+      enregistrerHistorique(voyageId, `a dupliqué « ${original.nom} » vers un autre onglet`, auteurLabel);
+    } catch (error) {
+      console.error('Erreur de duplication :', error);
+    }
   };
 
   const handleAdd = async (e) => {
@@ -389,11 +415,36 @@ export function Checklist({ voyageId, voyage, currentUser }) {
     }
   };
 
+  // --- Annuler une suppression : on garde une copie des tâches supprimées
+  // pendant quelques secondes, le temps de proposer un "Annuler".
+  const [derniersSupprimes, setDerniersSupprimes] = useState(null); // tableau de tâches, ou null
+  const toastTimeoutRef = useRef(null);
+
+  const declencherToastSuppression = (tachesSupprimees) => {
+    setDerniersSupprimes(tachesSupprimees);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setDerniersSupprimes(null), 6000);
+  };
+
+  const annulerSuppression = async () => {
+    if (!derniersSupprimes) return;
+    const aRestaurer = derniersSupprimes;
+    setDerniersSupprimes(null);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    try {
+      await Promise.all(aRestaurer.map(({ id, ...data }) => addDoc(collection(db, 'checklist'), data)));
+    } catch (error) {
+      console.error('Erreur de restauration :', error);
+    }
+  };
+
   const supprimerSelection = async () => {
     const ids = Array.from(selectionnees);
+    const tachesSupprimees = taches.filter((t) => ids.includes(t.id));
     await Promise.all(ids.map((id) => deleteDoc(doc(db, 'checklist', id))));
     setSelectionnees(new Set());
     setModeSelection(false);
+    if (tachesSupprimees.length > 0) declencherToastSuppression(tachesSupprimees);
   };
 
   const toggleFait = async (tache) => {
@@ -413,9 +464,11 @@ export function Checklist({ voyageId, voyage, currentUser }) {
   };
 
   const handleDelete = async (id) => {
+    const tache = taches.find((t) => t.id === id);
     try {
       await deleteDoc(doc(db, 'checklist', id));
       if (idEnEdition === id) resetFormulaire();
+      if (tache) declencherToastSuppression([tache]);
     } catch (error) {
       console.error('Erreur de suppression :', error);
     }
@@ -423,10 +476,10 @@ export function Checklist({ voyageId, voyage, currentUser }) {
 
   const tachesFiltrees = useMemo(() => {
     let liste = filtreCategorie === 'toutes' ? tachesDuTab : tachesDuTab.filter((t) => (t.categorie || 'autre') === filtreCategorie);
-    if (!afficherTerminees) liste = liste.filter((t) => !t.fait);
+    liste = liste.filter((t) => (vueStatut === 'terminees' ? t.fait : !t.fait));
     if (triAlpha) liste = [...liste].sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }));
     return liste;
-  }, [tachesDuTab, filtreCategorie, afficherTerminees, triAlpha]);
+  }, [tachesDuTab, filtreCategorie, vueStatut, triAlpha]);
 
   const nombreTerminees = tachesDuTab.filter((t) => t.fait).length;
 
@@ -436,6 +489,31 @@ export function Checklist({ voyageId, voyage, currentUser }) {
 
   const getCategorie = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
   const getPriorite = (id) => PRIORITES.find((p) => p.id === id) || PRIORITES[1];
+
+  const nomOnglet = ongletActif === 'commune' ? 'Commune' : (nomAssigne(ongletActif) || 'Perso');
+
+  // Export en texte brut, prêt à coller dans Notes / Messages / email —
+  // reprend toute la liste de l'onglet actif, cochées comprises.
+  const exporterEnNotes = async () => {
+    const triees = [...tachesDuTab].sort((a, b) => (a.fait === b.fait ? 0 : a.fait ? 1 : -1));
+    const lignes = triees.map((t) => `${t.fait ? '☑' : '☐'} ${t.nom} (${getCategorie(t.categorie).label})`);
+    const texte = `Checklist – ${nomOnglet}\n\n${lignes.join('\n')}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `Checklist – ${nomOnglet}`, text: texte });
+      } catch (error) {
+        // L'utilisateur a simplement annulé le partage — rien à faire.
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(texte);
+        alert('Checklist copiée — colle-la où tu veux (Notes, message...).');
+      } catch (error) {
+        console.warn('Copie impossible.', error);
+      }
+    }
+  };
 
   const styles = {
     container: {
@@ -950,6 +1028,18 @@ export function Checklist({ voyageId, voyage, currentUser }) {
         {total > 0 && (
           <button
             type="button"
+            onClick={exporterEnNotes}
+            aria-label="Exporter en notes"
+            title="Exporter en notes"
+            style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', width: '36px', height: '36px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >
+            <IconFileExport size={16} />
+          </button>
+        )}
+
+        {total > 0 && (
+          <button
+            type="button"
             style={styles.selectionButton(modeSelection)}
             onClick={toggleModeSelection}
           >
@@ -1038,20 +1128,33 @@ export function Checklist({ voyageId, voyage, currentUser }) {
 
       {total > 0 && (
         <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-          <button
-            type="button"
-            onClick={() => setAfficherTerminees((v) => !v)}
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px 10px', borderRadius: '11px',
-              fontSize: '12.5px', fontWeight: '700', cursor: 'pointer',
-              border: afficherTerminees ? '1.5px solid #16C784' : '1.5px solid #E8DFCF',
-              backgroundColor: afficherTerminees ? '#F0FDF4' : '#FFFFFF',
-              color: afficherTerminees ? '#16A874' : '#8A7B68'
-            }}
-          >
-            {afficherTerminees ? <IconEyeOff size={15} /> : <IconEye size={15} />}
-            {afficherTerminees ? 'Masquer terminées' : `Voir terminées${nombreTerminees > 0 ? ` (${nombreTerminees})` : ''}`}
-          </button>
+          <div style={{ flex: 1, display: 'flex', backgroundColor: '#F1E8D8', padding: '3px', borderRadius: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setVueStatut('actives')}
+              style={{
+                flex: 1, border: 'none', padding: '8px 6px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer',
+                backgroundColor: vueStatut === 'actives' ? '#FFFFFF' : 'transparent',
+                color: vueStatut === 'actives' ? '#2B2420' : '#8A7B68',
+                boxShadow: vueStatut === 'actives' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
+              }}
+            >
+              À faire ({total - nombreTerminees})
+            </button>
+            <button
+              type="button"
+              onClick={() => setVueStatut('terminees')}
+              style={{
+                flex: 1, border: 'none', padding: '8px 6px', borderRadius: '9px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer',
+                backgroundColor: vueStatut === 'terminees' ? '#FFFFFF' : 'transparent',
+                color: vueStatut === 'terminees' ? '#16A874' : '#8A7B68',
+                boxShadow: vueStatut === 'terminees' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+              }}
+            >
+              <IconCircleCheckFilled size={13} /> Terminées ({nombreTerminees})
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setTriAlpha((v) => !v)}
@@ -1090,12 +1193,29 @@ export function Checklist({ voyageId, voyage, currentUser }) {
 
       <form onSubmit={handleAdd} style={styles.form}>
         {idEnEdition && (
+          <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', padding: '8px 10px', backgroundColor: '#EEF2F0', borderRadius: '10px' }}>
             <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#6E8AA6' }}>✏️ Modification d'une tâche</span>
             <button type="button" onClick={resetFormulaire} style={{ border: 'none', background: 'none', color: '#6E8AA6', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
               Annuler
             </button>
           </div>
+          {(voyageurs.length > 0 || ongletActif !== 'commune') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11.5px', color: '#B5A793', fontWeight: '600' }}>Dupliquer vers :</span>
+              {ongletActif !== 'commune' && (
+                <button type="button" onClick={() => dupliquerVers('commune')} style={{ border: '1px solid #E8DFCF', background: '#FFFFFF', color: '#8A7B68', fontSize: '11.5px', fontWeight: '700', padding: '4px 10px', borderRadius: '999px', cursor: 'pointer' }}>
+                  🤝 Commune
+                </button>
+              )}
+              {voyageurs.filter((v) => v.id !== ongletActif).map((v) => (
+                <button key={v.id} type="button" onClick={() => dupliquerVers(v.id)} style={{ border: '1px solid #E8DFCF', background: '#FFFFFF', color: '#8A7B68', fontSize: '11.5px', fontWeight: '700', padding: '4px 10px', borderRadius: '999px', cursor: 'pointer' }}>
+                  {v.avatar || '👤'} {v.id === currentUser?.uid ? 'Moi' : v.nom}
+                </button>
+              ))}
+            </div>
+          )}
+          </>
         )}
         <div style={styles.formRow}>
           <input
@@ -1355,6 +1475,25 @@ export function Checklist({ voyageId, voyage, currentUser }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {derniersSupprimes && (
+        <div style={{
+          position: 'fixed', left: '50%', bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))', transform: 'translateX(-50%)',
+          display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#2B2420', color: '#FFFFFF',
+          padding: '12px 16px', borderRadius: '14px', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', zIndex: 3000, maxWidth: '92vw'
+        }}>
+          <span style={{ fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+            {derniersSupprimes.length > 1 ? `${derniersSupprimes.length} tâches supprimées` : 'Tâche supprimée'}
+          </span>
+          <button
+            type="button"
+            onClick={annulerSuppression}
+            style={{ border: 'none', background: 'none', color: '#F5C97B', fontSize: '13px', fontWeight: '800', cursor: 'pointer', flexShrink: 0 }}
+          >
+            Annuler
+          </button>
         </div>
       )}
     </div>
