@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, storage } from '../firebase';
 import {
-  collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp
+  collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   IconArrowLeft, IconPlus, IconX, IconTrash, IconPencil, IconTool, IconChecklist,
   IconCalendar, IconGauge, IconCamera, IconAlertTriangle, IconCircle, IconCircleCheckFilled,
-  IconNote, IconChevronDown
+  IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight
 } from '@tabler/icons-react';
 
 const TYPES_ENTRETIEN = [
@@ -34,13 +34,26 @@ const PRIORITES = [
   { id: 'optionnel', label: 'Optionnel', color: '#B5A793' }
 ];
 
+const MOMENTS = [
+  { id: 'matin', label: 'Matin', emoji: '☀️' },
+  { id: 'midi', label: 'Midi', emoji: '🌤️' },
+  { id: 'soir', label: 'Soir', emoji: '🌙' }
+];
+
+const CATEGORIES_RECETTES = [
+  { id: 'petit-dej', label: 'Petit-déj', color: '#F59E0B', bg: '#FBF3E3' },
+  { id: 'plat', label: 'Plat', color: '#B8863C', bg: '#F1E8D8' },
+  { id: 'dessert', label: 'Dessert', color: '#B97490', bg: '#F8EFF2' },
+  { id: 'autre', label: 'Autre', color: '#8A7B68', bg: '#F1E8D8' }
+];
+
 function formatDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function Perso({ utilisateur, onClose }) {
-  const [ongletActif, setOngletActif] = useState('van'); // 'van' | 'taches'
+  const [ongletActif, setOngletActif] = useState('van'); // 'van' | 'taches' | 'recettes'
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -57,12 +70,12 @@ export function Perso({ utilisateur, onClose }) {
           <h2 style={{ margin: 0, fontSize: '21px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</h2>
         </div>
 
-        <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', gap: '8px' }}>
+        <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
           <button
             onClick={() => setOngletActif('van')}
             style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '11px', borderRadius: '13px',
-              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer',
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
+              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
               border: ongletActif === 'van' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
               backgroundColor: ongletActif === 'van' ? '#F1E8D8' : '#FFFFFF',
               color: ongletActif === 'van' ? '#B8863C' : '#8A7B68'
@@ -73,8 +86,8 @@ export function Perso({ utilisateur, onClose }) {
           <button
             onClick={() => setOngletActif('taches')}
             style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '11px', borderRadius: '13px',
-              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer',
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
+              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
               border: ongletActif === 'taches' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
               backgroundColor: ongletActif === 'taches' ? '#F1E8D8' : '#FFFFFF',
               color: ongletActif === 'taches' ? '#B8863C' : '#8A7B68'
@@ -82,11 +95,25 @@ export function Perso({ utilisateur, onClose }) {
           >
             <IconChecklist size={16} /> Mes Tâches
           </button>
+          <button
+            onClick={() => setOngletActif('recettes')}
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
+              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
+              border: ongletActif === 'recettes' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
+              backgroundColor: ongletActif === 'recettes' ? '#F1E8D8' : '#FFFFFF',
+              color: ongletActif === 'recettes' ? '#B8863C' : '#8A7B68'
+            }}
+          >
+            <IconChefHat size={16} /> Recettes
+          </button>
         </div>
       </div>
 
       <div style={{ maxWidth: '500px', margin: '0 auto', padding: '18px 15px 40px 15px' }}>
-        {ongletActif === 'van' ? <EntretienVan utilisateur={utilisateur} /> : <TachesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'van' && <EntretienVan utilisateur={utilisateur} />}
+        {ongletActif === 'taches' && <TachesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'recettes' && <RecettesPerso utilisateur={utilisateur} />}
       </div>
     </div>
   );
@@ -592,6 +619,411 @@ function TachesPerso({ utilisateur }) {
                     <button onClick={() => handleDelete(t.id)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconTrash size={16} /></button>
                   </div>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// ONGLET "RECETTES" — carnet de recettes + planning hebdomadaire
+// =====================================================================
+function RecettesPerso({ utilisateur }) {
+  const [sousOnglet, setSousOnglet] = useState('planning'); // 'planning' | 'carnet'
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button
+          onClick={() => setSousOnglet('planning')}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px', borderRadius: '11px',
+            fontSize: '12.5px', fontWeight: '800', cursor: 'pointer',
+            border: sousOnglet === 'planning' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
+            backgroundColor: sousOnglet === 'planning' ? '#F1E8D8' : '#FFFFFF',
+            color: sousOnglet === 'planning' ? '#B8863C' : '#8A7B68'
+          }}
+        >
+          <IconCalendarWeek size={15} /> Planning
+        </button>
+        <button
+          onClick={() => setSousOnglet('carnet')}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px', borderRadius: '11px',
+            fontSize: '12.5px', fontWeight: '800', cursor: 'pointer',
+            border: sousOnglet === 'carnet' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
+            backgroundColor: sousOnglet === 'carnet' ? '#F1E8D8' : '#FFFFFF',
+            color: sousOnglet === 'carnet' ? '#B8863C' : '#8A7B68'
+          }}
+        >
+          <IconBook2 size={15} /> Mes Recettes
+        </button>
+      </div>
+
+      {/* Le carnet est toujours chargé (même si l'onglet planning est actif)
+          pour pouvoir choisir une recette existante dans le sélecteur. */}
+      <RecetteBookEtPlanning utilisateur={utilisateur} sousOnglet={sousOnglet} />
+    </div>
+  );
+}
+
+function RecetteBookEtPlanning({ utilisateur, sousOnglet }) {
+  const [recettes, setRecettes] = useState([]);
+
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const q = query(collection(db, 'recettes_perso'), where('uid', '==', utilisateur.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }));
+      setRecettes(data);
+    });
+    return () => unsub();
+  }, [utilisateur?.uid]);
+
+  return sousOnglet === 'planning'
+    ? <PlanningSemaine utilisateur={utilisateur} recettes={recettes} />
+    : <CarnetRecettes utilisateur={utilisateur} recettes={recettes} />;
+}
+
+// --- PLANNING HEBDOMADAIRE ---------------------------------------------
+function lundiDeLaSemaine(offset) {
+  const auj = new Date();
+  const jour = auj.getDay(); // 0 = dimanche
+  const decalage = jour === 0 ? -6 : 1 - jour; // recule jusqu'au lundi
+  const lundi = new Date(auj);
+  lundi.setDate(auj.getDate() + decalage + offset * 7);
+  lundi.setHours(0, 0, 0, 0);
+  return lundi;
+}
+
+function toISODate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+const JOURS_LABEL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+function PlanningSemaine({ utilisateur, recettes }) {
+  const [semaineOffset, setSemaineOffset] = useState(0);
+  const [planning, setPlanning] = useState({}); // clé "date_moment" -> entrée
+  const [slotOuvert, setSlotOuvert] = useState(null); // { date, moment } ou null
+  const [rechercheSlot, setRechercheSlot] = useState('');
+  const [texteLibreSlot, setTexteLibreSlot] = useState('');
+
+  const lundi = useMemo(() => lundiDeLaSemaine(semaineOffset), [semaineOffset]);
+  const joursSemaine = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(lundi);
+      d.setDate(lundi.getDate() + i);
+      return d;
+    });
+  }, [lundi]);
+
+  const dateDebut = joursSemaine[0];
+  const dateFin = joursSemaine[6];
+
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const debutISO = toISODate(dateDebut);
+    const finISO = toISODate(dateFin);
+    const q = query(collection(db, 'planning_repas'), where('uid', '==', utilisateur.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const map = {};
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.date >= debutISO && data.date <= finISO) {
+          map[`${data.date}_${data.moment}`] = { id: d.id, ...data };
+        }
+      });
+      setPlanning(map);
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [utilisateur?.uid, toISODate(dateDebut), toISODate(dateFin)]);
+
+  const ouvrirSlot = (date, moment) => {
+    const cle = `${date}_${moment}`;
+    const existant = planning[cle];
+    setTexteLibreSlot(existant?.recetteNom || '');
+    setRechercheSlot('');
+    setSlotOuvert({ date, moment });
+  };
+
+  const assignerRecette = async (recette) => {
+    if (!slotOuvert) return;
+    const { date, moment } = slotOuvert;
+    try {
+      await setDoc(doc(db, 'planning_repas', `${utilisateur.uid}_${date}_${moment}`), {
+        uid: utilisateur.uid, date, moment,
+        recetteId: recette?.id || null,
+        recetteNom: recette?.nom || texteLibreSlot.trim(),
+        createdAt: serverTimestamp()
+      }, { merge: true });
+      setSlotOuvert(null);
+    } catch (error) {
+      console.error("Erreur d'enregistrement :", error);
+    }
+  };
+
+  const validerTexteLibre = async (e) => {
+    e.preventDefault();
+    if (!texteLibreSlot.trim()) return;
+    await assignerRecette(null);
+  };
+
+  const viderSlot = async (date, moment) => {
+    const cle = `${date}_${moment}`;
+    const existant = planning[cle];
+    if (!existant) return;
+    try {
+      await deleteDoc(doc(db, 'planning_repas', existant.id));
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
+  const recettesFiltrees = rechercheSlot.trim()
+    ? recettes.filter((r) => r.nom.toLowerCase().includes(rechercheSlot.trim().toLowerCase()))
+    : recettes;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <button onClick={() => setSemaineOffset((v) => v - 1)} style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#2B2420' }}>
+          <IconChevronLeft size={16} />
+        </button>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#2B2420' }}>
+            {semaineOffset === 0 ? 'Cette semaine' : dateDebut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' – ' + dateFin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+          </p>
+        </div>
+        <button onClick={() => setSemaineOffset((v) => v + 1)} style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#2B2420' }}>
+          <IconChevronRight size={16} />
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {joursSemaine.map((d, i) => {
+          const dateISO = toISODate(d);
+          const aujourdHui = toISODate(new Date()) === dateISO;
+          return (
+            <div key={dateISO} style={{ backgroundColor: '#FFFFFF', border: aujourdHui ? '1.5px solid #B8863C' : '1px solid #E8DFCF', borderRadius: '16px', padding: '12px' }}>
+              <p style={{ margin: '0 0 8px 0', fontSize: '12.5px', fontWeight: '800', color: aujourdHui ? '#B8863C' : '#2B2420' }}>
+                {JOURS_LABEL[i]} {d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {MOMENTS.map((m) => {
+                  const entree = planning[`${dateISO}_${m.id}`];
+                  return (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '52px', flexShrink: 0, fontSize: '11px', color: '#B5A793', fontWeight: '700' }}>{m.emoji} {m.label}</span>
+                      {entree ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#F7F1E8', borderRadius: '9px', padding: '7px 10px' }}>
+                          <span style={{ flex: 1, fontSize: '12.5px', fontWeight: '600', color: '#2B2420' }}>{entree.recetteNom}</span>
+                          <button onClick={() => ouvrirSlot(dateISO, m.id)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '2px', display: 'flex' }}><IconPencil size={13} /></button>
+                          <button onClick={() => viderSlot(dateISO, m.id)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '2px', display: 'flex' }}><IconX size={14} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => ouvrirSlot(dateISO, m.id)} style={{ flex: 1, border: '1px dashed #D9CDB8', background: 'transparent', borderRadius: '9px', padding: '7px 10px', color: '#B5A793', fontSize: '12px', fontWeight: '700', cursor: 'pointer', textAlign: 'left' }}>
+                          + Ajouter
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {slotOuvert && (
+        <div
+          onClick={() => setSlotOuvert(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(43, 36, 32, 0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 2000 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#FFFFFF', borderRadius: '20px 20px 0 0', padding: '20px', width: '100%', maxWidth: '460px', maxHeight: '75vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#2B2420' }}>
+                {JOURS_LABEL[joursSemaine.findIndex((d) => toISODate(d) === slotOuvert.date)]} · {MOMENTS.find((m) => m.id === slotOuvert.moment)?.label}
+              </h3>
+              <button onClick={() => setSlotOuvert(null)} style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', width: '30px', height: '30px', borderRadius: '10px', cursor: 'pointer' }}><IconX size={16} /></button>
+            </div>
+
+            <form onSubmit={validerTexteLibre} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+              <input
+                type="text"
+                placeholder="Écrire rapidement (ex: Pâtes au pesto)"
+                value={texteLibreSlot}
+                onChange={(e) => { setTexteLibreSlot(e.target.value); setRechercheSlot(e.target.value); }}
+                style={{ flex: 1, padding: '11px 13px', borderRadius: '11px', border: '1px solid #E8DFCF', fontSize: '14px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+              <button type="submit" style={{ width: '42px', border: 'none', backgroundColor: '#B8863C', color: '#FFF', borderRadius: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <IconPlus size={18} />
+              </button>
+            </form>
+
+            {recettes.length > 0 && (
+              <>
+                <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#B5A793', fontWeight: '700' }}>OU CHOISIR UNE RECETTE</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {recettesFiltrees.map((r) => (
+                    <div
+                      key={r.id}
+                      onClick={() => assignerRecette(r)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', backgroundColor: '#F7F1E8', borderRadius: '11px', cursor: 'pointer' }}
+                    >
+                      <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#2B2420', flex: 1 }}>{r.nom}</span>
+                      {r.categorie && <span style={{ fontSize: '10.5px', fontWeight: '700', color: CATEGORIES_RECETTES.find((c) => c.id === r.categorie)?.color || '#8A7B68' }}>{CATEGORIES_RECETTES.find((c) => c.id === r.categorie)?.label}</span>}
+                    </div>
+                  ))}
+                  {recettesFiltrees.length === 0 && (
+                    <p style={{ fontSize: '12.5px', color: '#B5A793', textAlign: 'center', padding: '10px' }}>Aucune recette ne correspond.</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- CARNET DE RECETTES --------------------------------------------------
+function CarnetRecettes({ utilisateur, recettes }) {
+  const [showForm, setShowForm] = useState(false);
+  const [idEnEdition, setIdEnEdition] = useState(null);
+  const [nom, setNom] = useState('');
+  const [categorie, setCategorie] = useState('plat');
+  const [ingredients, setIngredients] = useState('');
+  const [etapes, setEtapes] = useState('');
+  const [recetteOuverte, setRecetteOuverte] = useState(null); // pour la vue détail
+
+  const resetForm = () => {
+    setNom(''); setCategorie('plat'); setIngredients(''); setEtapes('');
+    setIdEnEdition(null); setShowForm(false);
+  };
+
+  const commencerEdition = (r) => {
+    setNom(r.nom); setCategorie(r.categorie || 'plat');
+    setIngredients(r.ingredients || ''); setEtapes(r.etapes || '');
+    setIdEnEdition(r.id); setShowForm(true); setRecetteOuverte(null);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!nom.trim()) return;
+    const payload = { nom: nom.trim(), categorie, ingredients, etapes };
+    try {
+      if (idEnEdition) {
+        await updateDoc(doc(db, 'recettes_perso', idEnEdition), payload);
+      } else {
+        await addDoc(collection(db, 'recettes_perso'), { ...payload, uid: utilisateur.uid, createdAt: serverTimestamp() });
+      }
+      resetForm();
+    } catch (error) {
+      console.error("Erreur d'enregistrement :", error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Supprimer cette recette ?')) return;
+    try {
+      await deleteDoc(doc(db, 'recettes_perso', id));
+      setRecetteOuverte(null);
+      if (idEnEdition === id) resetForm();
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
+  const inputStyle = { width: '100%', padding: '11px', borderRadius: '11px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontSize: '14.5px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+  const getCat = (id) => CATEGORIES_RECETTES.find((c) => c.id === id) || CATEGORIES_RECETTES[CATEGORIES_RECETTES.length - 1];
+
+  return (
+    <div>
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)} style={{ width: '100%', padding: '13px', backgroundColor: '#B8863C', color: '#FFF', border: 'none', borderRadius: '15px', fontWeight: '800', cursor: 'pointer', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+          <IconPlus size={17} /> Nouvelle recette
+        </button>
+      ) : (
+        <form onSubmit={handleSubmit} style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '18px', border: '1px solid #E8DFCF', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#2B2420' }}>{idEnEdition ? 'Modifier' : 'Nouvelle recette'}</span>
+            <button type="button" onClick={resetForm} style={{ border: 'none', background: 'none', color: '#8A7B68', cursor: 'pointer' }}><IconX size={18} /></button>
+          </div>
+
+          <input type="text" placeholder="Nom de la recette" value={nom} onChange={(e) => setNom(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} required />
+
+          <div style={{ display: 'flex', gap: '7px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            {CATEGORIES_RECETTES.map((c) => (
+              <button key={c.id} type="button" onClick={() => setCategorie(c.id)} style={{
+                padding: '7px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                border: categorie === c.id ? `1.5px solid ${c.color}` : '1.5px solid #E8DFCF',
+                backgroundColor: categorie === c.id ? c.bg : '#FFFFFF', color: categorie === c.id ? c.color : '#8A7B68'
+              }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Ingrédients</label>
+          <textarea placeholder={'ex: 200g de farine\n2 œufs\n1 pincée de sel'} value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={4} style={{ ...inputStyle, marginBottom: '10px', resize: 'vertical', fontFamily: 'inherit' }} />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Étapes</label>
+          <textarea placeholder="ex: Mélanger, cuire 20 min à 180°..." value={etapes} onChange={(e) => setEtapes(e.target.value)} rows={4} style={{ ...inputStyle, marginBottom: '14px', resize: 'vertical', fontFamily: 'inherit' }} />
+
+          <button type="submit" style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}>
+            {idEnEdition ? 'Enregistrer' : 'Ajouter'}
+          </button>
+        </form>
+      )}
+
+      {recettes.length === 0 ? (
+        <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF', color: '#B5A793', fontSize: '13.5px' }}>
+          Aucune recette pour l'instant.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {recettes.map((r) => {
+            const cat = getCat(r.categorie);
+            return (
+              <div key={r.id} style={{ backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '16px', padding: '13px' }}>
+                <div onClick={() => setRecetteOuverte(recetteOuverte === r.id ? null : r.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0 }}>
+                    <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#2B2420' }}>{r.nom}</span>
+                    <span style={{ fontSize: '10.5px', fontWeight: '700', color: cat.color, backgroundColor: cat.bg, padding: '2px 8px', borderRadius: '999px', flexShrink: 0 }}>{cat.label}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                    <button onClick={(e) => { e.stopPropagation(); commencerEdition(r); }} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconPencil size={15} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconTrash size={16} /></button>
+                    <IconChevronDown size={16} color="#B5A793" style={{ transform: recetteOuverte === r.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', marginLeft: '4px', alignSelf: 'center' }} />
+                  </div>
+                </div>
+
+                {recetteOuverte === r.id && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F1E8D8' }}>
+                    {r.ingredients && (
+                      <>
+                        <p style={{ margin: '0 0 4px 0', fontSize: '11px', fontWeight: '800', color: '#8A7B68' }}>INGRÉDIENTS</p>
+                        <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#475569', whiteSpace: 'pre-line', lineHeight: '1.6' }}>{r.ingredients}</p>
+                      </>
+                    )}
+                    {r.etapes && (
+                      <>
+                        <p style={{ margin: '0 0 4px 0', fontSize: '11px', fontWeight: '800', color: '#8A7B68' }}>ÉTAPES</p>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#475569', whiteSpace: 'pre-line', lineHeight: '1.6' }}>{r.etapes}</p>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
