@@ -115,8 +115,10 @@ const OCCASIONS = [
   { id: 'travail', label: '💼 Travail' }
 ];
 
-// Petit composant réutilisable : 5 étoiles = une note sur 10, avec
-// granularité au DEMI-POINT (donc demi-étoile visuelle). Chaque étoile est
+// Petit composant réutilisable : 5 étoiles = une note affichée sur 5
+// (ex: 2.5/5), stockée en interne sur une échelle 0-10 (compatible avec les
+// fiches déjà enregistrées) avec granularité au DEMI-POINT — donc demi-étoile
+// visuelle, et affichage divisé par 2. Chaque étoile est
 // divisée en deux zones cliquables invisibles (moitié gauche = demi-étoile,
 // moitié droite = étoile pleine) et le remplissage visuel (0 / 50 / 100 %)
 // est obtenu en superposant une étoile pleine découpée par-dessus une étoile
@@ -126,7 +128,7 @@ function LigneEtoiles({ label, valeur, onChange }) {
     <div style={{ marginBottom: '12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
         <span style={{ fontSize: '13px', fontWeight: '700', color: '#2B2420' }}>{label}</span>
-        {valeur > 0 && <span style={{ fontSize: '12px', fontWeight: '800', color: '#B8863C' }}>{valeur}/10</span>}
+        {valeur > 0 && <span style={{ fontSize: '12px', fontWeight: '800', color: '#B8863C' }}>{(valeur / 2).toFixed(1)}/5</span>}
       </div>
       <div style={{ display: 'flex', gap: '4px' }}>
         {[1, 2, 3, 4, 5].map((etoile) => {
@@ -508,7 +510,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
           className: '', iconSize: [30, 30], iconAnchor: [15, 15]
         });
         L.marker([r.lat, r.lon], { icon: icone }).addTo(carte)
-          .bindPopup(`<strong>${r.nom}</strong><br/>${[r.ville, r.pays].filter(Boolean).join(', ')}<br/>⭐ ${r.moyenne?.toFixed(1) || '—'}/10`);
+          .bindPopup(`<strong>${r.nom}</strong><br/>${[r.ville, r.pays].filter(Boolean).join(', ')}<br/>⭐ ${r.moyenne != null ? (r.moyenne / 2).toFixed(1) : '—'}/5`);
       });
       const latlngs = restosAvecCoordonnees.map((r) => [r.lat, r.lon]);
       if (latlngs.length === 1) carte.setView(latlngs[0], 11);
@@ -536,7 +538,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
     liste.forEach((r, i) => {
       const lieuTexte = [r.ville, r.pays].filter(Boolean).join(', ');
       const cuisineTexte = trouverCuisine(r.typeCuisine)?.label || '';
-      texte += `${i + 1}. ${r.nom}${lieuTexte ? ` (${lieuTexte})` : ''}${cuisineTexte ? ` · ${cuisineTexte}` : ''} — ${r.moyenne?.toFixed(1) || '—'}/10\n`;
+      texte += `${i + 1}. ${r.nom}${lieuTexte ? ` (${lieuTexte})` : ''}${cuisineTexte ? ` · ${cuisineTexte}` : ''} — ${r.moyenne != null ? (r.moyenne / 2).toFixed(1) : '—'}/5\n`;
     });
     return texte;
   };
@@ -762,7 +764,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#FBF3E3', borderRadius: '12px', marginBottom: '16px', marginTop: '4px' }}>
                     <span style={{ fontSize: '13px', fontWeight: '700', color: '#8A7B68' }}>Moyenne générale</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '16px', fontWeight: '800', color: '#B8863C' }}>
-                      <IconStar size={15} fill="#B8863C" /> {moyenneEnCours.toFixed(1)}/10
+                      <IconStar size={15} fill="#B8863C" /> {(moyenneEnCours / 2).toFixed(1)}/5
                       {moyenneEnCours === 10 && <span title="Coup de cœur">❤️</span>}
                     </span>
                   </div>
@@ -894,7 +896,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#FBF3E3', padding: '4px 10px', borderRadius: '999px' }}>
                                 <IconStar size={13} color="#B8863C" fill="#B8863C" />
-                                <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne?.toFixed(1) || '—'}</span>
+                                <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne != null ? (r.moyenne / 2).toFixed(1) : '—'}</span>
                               </div>
                               <button onClick={() => commencerEdition(r)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '2px' }}>
                                 <IconPencil size={15} />
@@ -906,9 +908,9 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                           </div>
 
                           <div style={{ display: 'flex', gap: '14px', marginTop: '10px' }}>
-                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>🍽️ {r.noteNourriture || 0}/10</span>
-                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>✨ {r.noteAmbiance || 0}/10</span>
-                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>🙋 {r.noteService || 0}/10</span>
+                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>🍽️ {((r.noteNourriture || 0) / 2).toFixed(1)}/5</span>
+                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>✨ {((r.noteAmbiance || 0) / 2).toFixed(1)}/5</span>
+                            <span style={{ fontSize: '11px', color: '#8A7B68' }}>🙋 {((r.noteService || 0) / 2).toFixed(1)}/5</span>
                             {r.prixParPersonne != null && (
                               <span style={{ fontSize: '11px', color: '#B8863C', fontWeight: '700', marginLeft: 'auto' }}>
                                 {classifierPrix(r.prixParPersonne)?.symbole} {r.prixParPersonne.toFixed(0)}/pers.
@@ -983,7 +985,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#FFFFFF', padding: '5px 11px', borderRadius: '999px', flexShrink: 0, border: '1px solid #E8DFCF' }}>
                       <IconStar size={12} color="#B8863C" fill="#B8863C" />
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne?.toFixed(1) || '—'}</span>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#B8863C' }}>{r.moyenne != null ? (r.moyenne / 2).toFixed(1) : '—'}</span>
                     </div>
                   </div>
                 ))}
