@@ -115,7 +115,12 @@ const OCCASIONS = [
   { id: 'travail', label: '💼 Travail' }
 ];
 
-// Petit composant réutilisable : 5 étoiles = une note sur 10 (par pas de 2)
+// Petit composant réutilisable : 5 étoiles = une note sur 10, avec
+// granularité au DEMI-POINT (donc demi-étoile visuelle). Chaque étoile est
+// divisée en deux zones cliquables invisibles (moitié gauche = demi-étoile,
+// moitié droite = étoile pleine) et le remplissage visuel (0 / 50 / 100 %)
+// est obtenu en superposant une étoile pleine découpée par-dessus une étoile
+// vide, plutôt qu'en changeant de glyphe.
 function LigneEtoiles({ label, valeur, onChange }) {
   return (
     <div style={{ marginBottom: '12px' }}>
@@ -124,15 +129,32 @@ function LigneEtoiles({ label, valeur, onChange }) {
         {valeur > 0 && <span style={{ fontSize: '12px', fontWeight: '800', color: '#B8863C' }}>{valeur}/10</span>}
       </div>
       <div style={{ display: 'flex', gap: '4px' }}>
-        {[1, 2, 3, 4, 5].map((etoile) => (
-          <span
-            key={etoile}
-            onClick={() => onChange(valeur === etoile * 2 ? 0 : etoile * 2)}
-            style={{ cursor: 'pointer', fontSize: '22px', lineHeight: 1, color: etoile * 2 <= valeur ? '#B8863C' : '#E8DFCF' }}
-          >
-            ★
-          </span>
-        ))}
+        {[1, 2, 3, 4, 5].map((etoile) => {
+          const pleine = etoile * 2;
+          const demi = pleine - 1;
+          let pourcentage = 0;
+          if (valeur >= pleine) pourcentage = 100;
+          else if (valeur >= demi) pourcentage = 50;
+
+          return (
+            <div key={etoile} style={{ position: 'relative', width: '22px', height: '22px', lineHeight: 1 }}>
+              {/* Étoile vide en fond */}
+              <span style={{ position: 'absolute', inset: 0, fontSize: '22px', color: '#E8DFCF', pointerEvents: 'none' }}>★</span>
+              {/* Étoile pleine superposée, découpée selon le % de remplissage */}
+              <span style={{ position: 'absolute', inset: 0, fontSize: '22px', color: '#B8863C', overflow: 'hidden', width: `${pourcentage}%`, whiteSpace: 'nowrap', pointerEvents: 'none' }}>★</span>
+              {/* Zone cliquable gauche = demi-étoile */}
+              <span
+                onClick={() => onChange(valeur === demi ? 0 : demi)}
+                style={{ position: 'absolute', left: 0, top: 0, width: '50%', height: '100%', cursor: 'pointer' }}
+              />
+              {/* Zone cliquable droite = étoile pleine */}
+              <span
+                onClick={() => onChange(valeur === pleine ? 0 : pleine)}
+                style={{ position: 'absolute', right: 0, top: 0, width: '50%', height: '100%', cursor: 'pointer' }}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
