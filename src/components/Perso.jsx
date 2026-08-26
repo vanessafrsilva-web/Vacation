@@ -8,8 +8,15 @@ import {
   IconArrowLeft, IconPlus, IconX, IconTrash, IconPencil, IconTool, IconChecklist,
   IconCalendar, IconGauge, IconCamera, IconAlertTriangle, IconCircle, IconCircleCheckFilled,
   IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight,
-  IconHeart, IconGift, IconMapPin, IconClock, IconBulb
+  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight
 } from '@tabler/icons-react';
+
+const MODULES_PERSO = [
+  { id: 'van', titre: 'Ma Voiture', description: 'Entretien, rappels et petites tâches liées à la voiture', icon: IconTool, couleur: '#B8863C', fond: '#F1E8D8' },
+  { id: 'taches', titre: 'Mes Tâches', description: 'Ta to-do list du quotidien', icon: IconChecklist, couleur: '#16C784', fond: '#E6F9F1' },
+  { id: 'recettes', titre: 'Recettes', description: 'Carnet de recettes et planning des repas', icon: IconChefHat, couleur: '#B97490', fond: '#F8EFF2' },
+  { id: 'dates', titre: 'Nos Dates', description: 'Journal des attentions et planification de vos rendez-vous', icon: IconHeart, couleur: '#C2707D', fond: '#F8EFF2' }
+];
 
 const TYPES_ENTRETIEN = [
   { id: 'vidange', label: 'Vidange', emoji: '🛢️' },
@@ -63,76 +70,55 @@ function formatDate(dateStr) {
 }
 
 export function Perso({ utilisateur, onClose }) {
-  const [ongletActif, setOngletActif] = useState('van'); // 'van' | 'taches' | 'recettes' | 'dates'
+  const [ongletActif, setOngletActif] = useState(null); // null = menu | 'van' | 'taches' | 'recettes' | 'dates'
+
+  const moduleActif = MODULES_PERSO.find((m) => m.id === ongletActif);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap');`}</style>
 
       <div style={{ padding: 'calc(20px + env(safe-area-inset-top)) 15px 15px 15px', backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #E8DFCF' }}>
-        <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+        <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button
-            onClick={onClose}
+            onClick={() => (ongletActif === null ? onClose() : setOngletActif(null))}
             style={{ flexShrink: 0, width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '13px', color: '#2B2420', cursor: 'pointer' }}
           >
             <IconArrowLeft size={18} />
           </button>
-          <h2 style={{ margin: 0, fontSize: '21px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</h2>
-        </div>
-
-        <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
-          <button
-            onClick={() => setOngletActif('van')}
-            style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
-              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
-              border: ongletActif === 'van' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
-              backgroundColor: ongletActif === 'van' ? '#F1E8D8' : '#FFFFFF',
-              color: ongletActif === 'van' ? '#B8863C' : '#8A7B68'
-            }}
-          >
-            <IconTool size={16} /> Ma Voiture
-          </button>
-          <button
-            onClick={() => setOngletActif('taches')}
-            style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
-              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
-              border: ongletActif === 'taches' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
-              backgroundColor: ongletActif === 'taches' ? '#F1E8D8' : '#FFFFFF',
-              color: ongletActif === 'taches' ? '#B8863C' : '#8A7B68'
-            }}
-          >
-            <IconChecklist size={16} /> Mes Tâches
-          </button>
-          <button
-            onClick={() => setOngletActif('recettes')}
-            style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
-              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
-              border: ongletActif === 'recettes' ? '1.5px solid #B8863C' : '1.5px solid #E8DFCF',
-              backgroundColor: ongletActif === 'recettes' ? '#F1E8D8' : '#FFFFFF',
-              color: ongletActif === 'recettes' ? '#B8863C' : '#8A7B68'
-            }}
-          >
-            <IconChefHat size={16} /> Recettes
-          </button>
-          <button
-            onClick={() => setOngletActif('dates')}
-            style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
-              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
-              border: ongletActif === 'dates' ? '1.5px solid #C2707D' : '1.5px solid #E8DFCF',
-              backgroundColor: ongletActif === 'dates' ? '#F8EFF2' : '#FFFFFF',
-              color: ongletActif === 'dates' ? '#C2707D' : '#8A7B68'
-            }}
-          >
-            <IconHeart size={16} /> Nos Dates
-          </button>
+          <h2 style={{ margin: 0, fontSize: '21px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>
+            {moduleActif ? moduleActif.titre : 'Perso'}
+          </h2>
         </div>
       </div>
 
       <div style={{ maxWidth: '500px', margin: '0 auto', padding: '18px 15px 40px 15px' }}>
+        {ongletActif === null && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {MODULES_PERSO.map((m) => {
+              const Icon = m.icon;
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => setOngletActif(m.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '14px', padding: '16px',
+                    backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '20px', cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ flexShrink: 0, width: '52px', height: '52px', borderRadius: '15px', backgroundColor: m.fond, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={24} color={m.couleur} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: '0 0 3px 0', fontSize: '16px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>{m.titre}</p>
+                    <p style={{ margin: 0, fontSize: '12.5px', color: '#8A7B68', lineHeight: '1.4' }}>{m.description}</p>
+                  </div>
+                  <IconArrowRight size={18} color="#B5A793" style={{ flexShrink: 0 }} />
+                </div>
+              );
+            })}
+          </div>
+        )}
         {ongletActif === 'van' && <EntretienVan utilisateur={utilisateur} />}
         {ongletActif === 'taches' && <TachesPerso utilisateur={utilisateur} />}
         {ongletActif === 'recettes' && <RecettesPerso utilisateur={utilisateur} />}
