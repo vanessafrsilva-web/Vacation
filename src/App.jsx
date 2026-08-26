@@ -22,7 +22,7 @@ import { Auth } from './components/Auth';
 import { Profil } from './components/Profil';
 import { Galerie } from './components/Galerie';
 import { Perso } from './components/Perso';
-import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2, IconTool } from '@tabler/icons-react';
+import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2, IconTool, IconHeart } from '@tabler/icons-react';
 
 function App() {
   const [appDemarree, setAppDemarree] = useState(false);
@@ -348,7 +348,7 @@ function App() {
   // Cherche une vraie photo pour un lieu donné. Priorité à Unsplash (bien plus
   // fiable pour retrouver de vraies photos de villes/lieux), avec Wikimedia
   // Commons en repli si Unsplash ne renvoie rien ou n'est pas configuré.
-  // Renvoie null si rien de convaincant n'est trouvé — la carte affichera alors
+  // Renvoie null si rien de convaincant n'a été trouvé — la carte affichera alors
   // un joli dégradé plutôt qu'une photo hors-sujet.
   const MOTS_EXCLUS = [
     'map', 'carte', 'plan', 'location', 'situation', 'coat of arms', 'armoiries',
@@ -1208,11 +1208,11 @@ function App() {
             }}
           >
             <div style={{ backgroundColor: '#EAF2EC', color: '#4A7C59', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
-              <IconTool size={30} />
+              <IconHeart size={30} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</div>
-              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Entretien de la voiture et tâches du quotidien</div>
+              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Voiture, tâches, recettes et vos petites attentions</div>
             </div>
             <IconArrowRight size={20} color="#B5A793" />
           </div>
