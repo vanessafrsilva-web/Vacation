@@ -7,7 +7,8 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import {
   IconArrowLeft, IconPlus, IconX, IconTrash, IconPencil, IconTool, IconChecklist,
   IconCalendar, IconGauge, IconCamera, IconAlertTriangle, IconCircle, IconCircleCheckFilled,
-  IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight
+  IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight,
+  IconHeart, IconGift, IconMapPin, IconClock, IconBulb
 } from '@tabler/icons-react';
 
 const TYPES_ENTRETIEN = [
@@ -47,13 +48,22 @@ const CATEGORIES_RECETTES = [
   { id: 'autre', label: 'Autre', color: '#8A7B68', bg: '#F1E8D8' }
 ];
 
+const TYPES_ATTENTIONS = [
+  { id: 'fleurs', label: 'Fleurs', emoji: '💐' },
+  { id: 'resto', label: 'Restaurant', emoji: '🍽️' },
+  { id: 'cadeau', label: 'Cadeau', emoji: '🎁' },
+  { id: 'sortie', label: 'Sortie', emoji: '🎫' },
+  { id: 'attention', label: 'Petite attention', emoji: '✨' },
+  { id: 'autre', label: 'Autre', emoji: '❤️' }
+];
+
 function formatDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function Perso({ utilisateur, onClose }) {
-  const [ongletActif, setOngletActif] = useState('van'); // 'van' | 'taches' | 'recettes'
+  const [ongletActif, setOngletActif] = useState('van'); // 'van' | 'taches' | 'recettes' | 'dates'
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -107,6 +117,18 @@ export function Perso({ utilisateur, onClose }) {
           >
             <IconChefHat size={16} /> Recettes
           </button>
+          <button
+            onClick={() => setOngletActif('dates')}
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '10px 15px', borderRadius: '999px',
+              fontSize: '13.5px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
+              border: ongletActif === 'dates' ? '1.5px solid #C2707D' : '1.5px solid #E8DFCF',
+              backgroundColor: ongletActif === 'dates' ? '#F8EFF2' : '#FFFFFF',
+              color: ongletActif === 'dates' ? '#C2707D' : '#8A7B68'
+            }}
+          >
+            <IconHeart size={16} /> Nos Dates
+          </button>
         </div>
       </div>
 
@@ -114,6 +136,7 @@ export function Perso({ utilisateur, onClose }) {
         {ongletActif === 'van' && <EntretienVan utilisateur={utilisateur} />}
         {ongletActif === 'taches' && <TachesPerso utilisateur={utilisateur} />}
         {ongletActif === 'recettes' && <RecettesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'dates' && <DatesPerso utilisateur={utilisateur} />}
       </div>
     </div>
   );
@@ -1021,6 +1044,412 @@ function CarnetRecettes({ utilisateur, recettes }) {
                         <p style={{ margin: '0 0 4px 0', fontSize: '11px', fontWeight: '800', color: '#8A7B68' }}>ÉTAPES</p>
                         <p style={{ margin: 0, fontSize: '13px', color: '#475569', whiteSpace: 'pre-line', lineHeight: '1.6' }}>{r.etapes}</p>
                       </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// ONGLET "NOS DATES" — journal des attentions (fleurs, cadeaux...)
+// + planificateur de rendez-vous/sorties avec timeline
+// =====================================================================
+function DatesPerso({ utilisateur }) {
+  const [sousOnglet, setSousOnglet] = useState('journal'); // 'journal' | 'planifier'
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button
+          onClick={() => setSousOnglet('journal')}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px', borderRadius: '11px',
+            fontSize: '12.5px', fontWeight: '800', cursor: 'pointer',
+            border: sousOnglet === 'journal' ? '1.5px solid #C2707D' : '1.5px solid #E8DFCF',
+            backgroundColor: sousOnglet === 'journal' ? '#F8EFF2' : '#FFFFFF',
+            color: sousOnglet === 'journal' ? '#C2707D' : '#8A7B68'
+          }}
+        >
+          <IconGift size={15} /> Journal
+        </button>
+        <button
+          onClick={() => setSousOnglet('planifier')}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px', borderRadius: '11px',
+            fontSize: '12.5px', fontWeight: '800', cursor: 'pointer',
+            border: sousOnglet === 'planifier' ? '1.5px solid #C2707D' : '1.5px solid #E8DFCF',
+            backgroundColor: sousOnglet === 'planifier' ? '#F8EFF2' : '#FFFFFF',
+            color: sousOnglet === 'planifier' ? '#C2707D' : '#8A7B68'
+          }}
+        >
+          <IconMapPin size={15} /> Planifier
+        </button>
+      </div>
+
+      {sousOnglet === 'journal'
+        ? <JournalAttentions utilisateur={utilisateur} />
+        : <PlanificateurDates utilisateur={utilisateur} />}
+    </div>
+  );
+}
+
+// --- JOURNAL DES ATTENTIONS (fleurs, cadeaux, restos...) ---------------
+function JournalAttentions({ utilisateur }) {
+  const [entrees, setEntrees] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [idEnEdition, setIdEnEdition] = useState(null);
+
+  const [type, setType] = useState('fleurs');
+  const [date, setDate] = useState(() => toISODate(new Date()));
+  const [lieu, setLieu] = useState('');
+  const [montant, setMontant] = useState('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const q = query(collection(db, 'dates_attentions'), where('uid', '==', utilisateur.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setEntrees(data);
+    });
+    return () => unsub();
+  }, [utilisateur?.uid]);
+
+  const resetForm = () => {
+    setType('fleurs'); setDate(toISODate(new Date())); setLieu(''); setMontant(''); setNotes('');
+    setIdEnEdition(null); setShowForm(false);
+  };
+
+  const commencerEdition = (entree) => {
+    setType(entree.type); setDate(entree.date); setLieu(entree.lieu || '');
+    setMontant(entree.montant ? String(entree.montant) : ''); setNotes(entree.notes || '');
+    setIdEnEdition(entree.id); setShowForm(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!date) return;
+    const payload = {
+      type, date, lieu: lieu || null,
+      montant: montant ? parseFloat(montant) : null, notes: notes || null
+    };
+    try {
+      if (idEnEdition) {
+        await updateDoc(doc(db, 'dates_attentions', idEnEdition), payload);
+      } else {
+        await addDoc(collection(db, 'dates_attentions'), {
+          ...payload, uid: utilisateur.uid, createdAt: serverTimestamp()
+        });
+      }
+      resetForm();
+    } catch (error) {
+      console.error("Erreur d'enregistrement :", error);
+    }
+  };
+
+  const handleDelete = async (entree) => {
+    if (!window.confirm('Supprimer cette entrée ?')) return;
+    try {
+      await deleteDoc(doc(db, 'dates_attentions', entree.id));
+      if (idEnEdition === entree.id) resetForm();
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
+  const infoType = (id) => TYPES_ATTENTIONS.find((t) => t.id === id) || TYPES_ATTENTIONS[TYPES_ATTENTIONS.length - 1];
+
+  // Derniers repères, par type, pour répondre tout de suite à
+  // "c'était quand les dernières fleurs ?"
+  const derniersParType = useMemo(() => {
+    const map = {};
+    entrees.forEach((e) => {
+      if (!map[e.type]) map[e.type] = e;
+    });
+    return map;
+  }, [entrees]);
+
+  const totalDepense = useMemo(() => entrees.reduce((s, e) => s + (e.montant || 0), 0), [entrees]);
+
+  const inputStyle = { width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+
+  return (
+    <div>
+      {Object.keys(derniersParType).length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '16px' }}>
+          {TYPES_ATTENTIONS.filter((t) => derniersParType[t.id]).map((t) => (
+            <div key={t.id} style={{ flexShrink: 0, minWidth: '128px', backgroundColor: '#FFFFFF', border: '1px solid #F1D9DF', borderRadius: '14px', padding: '10px 12px' }}>
+              <p style={{ margin: '0 0 3px 0', fontSize: '11px', fontWeight: '700', color: '#C2707D' }}>{t.emoji} Dernier {t.label.toLowerCase()}</p>
+              <p style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#2B2420' }}>{formatDate(derniersParType[t.id].date)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {totalDepense > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderRadius: '14px', backgroundColor: '#2B2420', marginBottom: '16px' }}>
+          <span style={{ fontSize: '13px', color: '#D9CDB8', fontWeight: '700' }}>Total offert</span>
+          <span style={{ fontSize: '16px', color: '#FFFFFF', fontWeight: '800' }}>{totalDepense.toFixed(2)} CHF</span>
+        </div>
+      )}
+
+      {showForm ? (
+        <form onSubmit={handleSubmit} style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '18px', border: '1px solid #E8DFCF', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '15px', fontWeight: '800', color: '#2B2420' }}>{idEnEdition ? 'Modifier' : 'Nouvelle attention'}</span>
+            <button type="button" onClick={resetForm} style={{ border: 'none', background: 'none', color: '#8A7B68', cursor: 'pointer' }}><IconX size={18} /></button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', marginBottom: '12px' }}>
+            {TYPES_ATTENTIONS.map((t) => (
+              <button key={t.id} type="button" onClick={() => setType(t.id)} style={{
+                padding: '9px 6px', borderRadius: '11px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer',
+                border: type === t.id ? '1.5px solid #C2707D' : '1.5px solid #E8DFCF',
+                backgroundColor: type === t.id ? '#F8EFF2' : '#F7F1E8', color: type === t.id ? '#C2707D' : '#8A7B68'
+              }}>
+                {t.emoji} {t.label}
+              </button>
+            ))}
+          </div>
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Date <span style={{ color: '#B3453A' }}>*</span></label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} required />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Lieu / occasion (optionnel)</label>
+          <input type="text" placeholder="ex: Anniversaire, marché de Berne..." value={lieu} onChange={(e) => setLieu(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Montant (optionnel)</label>
+          <input type="number" step="0.01" placeholder="CHF" value={montant} onChange={(e) => setMontant(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Notes</label>
+          <input type="text" placeholder="ex: Bouquet de pivoines, elle a adoré" value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inputStyle, marginBottom: '14px' }} />
+
+          <button type="submit" style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}>
+            {idEnEdition ? 'Enregistrer' : 'Ajouter'}
+          </button>
+        </form>
+      ) : (
+        <button onClick={() => setShowForm(true)} style={{ width: '100%', padding: '14px', backgroundColor: '#C2707D', color: '#FFF', border: 'none', borderRadius: '16px', fontWeight: '800', cursor: 'pointer', fontSize: '14.5px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+          <IconPlus size={18} /> Nouvelle attention
+        </button>
+      )}
+
+      {entrees.length === 0 ? (
+        <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF', color: '#B5A793', fontSize: '13.5px' }}>
+          Aucune attention enregistrée pour l'instant.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {entrees.map((e) => {
+            const info = infoType(e.type);
+            return (
+              <div key={e.id} style={{ backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '16px', padding: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#2B2420' }}>{info.emoji} {info.label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', color: '#8A7B68', display: 'flex', alignItems: 'center', gap: '3px' }}><IconCalendar size={12} /> {formatDate(e.date)}</span>
+                      {e.montant && <span style={{ fontSize: '12px', color: '#8A7B68', fontWeight: '700' }}>{e.montant.toFixed(2)} CHF</span>}
+                    </div>
+                    {e.lieu && (
+                      <span style={{ display: 'inline-block', marginTop: '6px', fontSize: '11px', fontWeight: '700', color: '#C2707D', backgroundColor: '#F8EFF2', padding: '2px 8px', borderRadius: '999px' }}>
+                        📍 {e.lieu}
+                      </span>
+                    )}
+                    {e.notes && <p style={{ margin: '6px 0 0 0', fontSize: '12.5px', color: '#475569' }}>{e.notes}</p>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                    <button onClick={() => commencerEdition(e)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconPencil size={16} /></button>
+                    <button onClick={() => handleDelete(e)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconTrash size={16} /></button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- PLANIFICATEUR DE RENDEZ-VOUS / SORTIES (avec timeline) ------------
+function PlanificateurDates({ utilisateur }) {
+  const [plans, setPlans] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [idEnEdition, setIdEnEdition] = useState(null);
+  const [planOuvert, setPlanOuvert] = useState(null);
+
+  const [titre, setTitre] = useState('');
+  const [date, setDate] = useState('');
+  const [lieu, setLieu] = useState('');
+  const [notes, setNotes] = useState('');
+  const [etapes, setEtapes] = useState([]); // [{ heure, texte }]
+
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const q = query(collection(db, 'planif_dates'), where('uid', '==', utilisateur.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      setPlans(data);
+    });
+    return () => unsub();
+  }, [utilisateur?.uid]);
+
+  const resetForm = () => {
+    setTitre(''); setDate(''); setLieu(''); setNotes(''); setEtapes([]);
+    setIdEnEdition(null); setShowForm(false);
+  };
+
+  const commencerEdition = (p) => {
+    setTitre(p.titre); setDate(p.date); setLieu(p.lieu || ''); setNotes(p.notes || '');
+    setEtapes(p.etapes && p.etapes.length > 0 ? p.etapes : []);
+    setIdEnEdition(p.id); setShowForm(true); setPlanOuvert(null);
+  };
+
+  const ajouterEtape = () => setEtapes((prev) => [...prev, { heure: '', texte: '' }]);
+  const modifierEtape = (i, champ, valeur) => setEtapes((prev) => prev.map((et, idx) => idx === i ? { ...et, [champ]: valeur } : et));
+  const supprimerEtape = (i) => setEtapes((prev) => prev.filter((_, idx) => idx !== i));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!titre.trim() || !date) return;
+    const etapesTriees = [...etapes]
+      .filter((et) => et.texte.trim())
+      .sort((a, b) => (a.heure || '99:99').localeCompare(b.heure || '99:99'));
+    const payload = { titre: titre.trim(), date, lieu: lieu || null, notes: notes || null, etapes: etapesTriees };
+    try {
+      if (idEnEdition) {
+        await updateDoc(doc(db, 'planif_dates', idEnEdition), payload);
+      } else {
+        await addDoc(collection(db, 'planif_dates'), {
+          ...payload, uid: utilisateur.uid, createdAt: serverTimestamp()
+        });
+      }
+      resetForm();
+    } catch (error) {
+      console.error("Erreur d'enregistrement :", error);
+    }
+  };
+
+  const handleDelete = async (p) => {
+    if (!window.confirm('Supprimer cette date planifiée ?')) return;
+    try {
+      await deleteDoc(doc(db, 'planif_dates', p.id));
+      if (idEnEdition === p.id) resetForm();
+      if (planOuvert === p.id) setPlanOuvert(null);
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
+  const inputStyle = { width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+  const aujourdHui = toISODate(new Date());
+
+  return (
+    <div>
+      {showForm ? (
+        <form onSubmit={handleSubmit} style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '18px', border: '1px solid #E8DFCF', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '15px', fontWeight: '800', color: '#2B2420' }}>{idEnEdition ? 'Modifier la fiche' : 'Nouvelle date'}</span>
+            <button type="button" onClick={resetForm} style={{ border: 'none', background: 'none', color: '#8A7B68', cursor: 'pointer' }}><IconX size={18} /></button>
+          </div>
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Titre <span style={{ color: '#B3453A' }}>*</span></label>
+          <input type="text" placeholder="ex: Dimanche à Berne" value={titre} onChange={(e) => setTitre(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} required />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Date <span style={{ color: '#B3453A' }}>*</span></label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, marginBottom: '10px' }} required />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Lieu principal (optionnel)</label>
+          <input type="text" placeholder="ex: Berne, marché de la place centrale" value={lieu} onChange={(e) => setLieu(e.target.value)} style={{ ...inputStyle, marginBottom: '14px' }} />
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '8px' }}>Déroulé de la journée</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+            {etapes.map((et, i) => (
+              <div key={i} style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+                <input
+                  type="time"
+                  value={et.heure}
+                  onChange={(e) => modifierEtape(i, 'heure', e.target.value)}
+                  style={{ width: '92px', flexShrink: 0, padding: '10px', borderRadius: '10px', border: '1px solid #E8DFCF', fontSize: '13px', color: '#2B2420', backgroundColor: '#FFFFFF', outline: 'none' }}
+                />
+                <input
+                  type="text"
+                  placeholder="ex: Fleurs sur le marché"
+                  value={et.texte}
+                  onChange={(e) => modifierEtape(i, 'texte', e.target.value)}
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: '10px', border: '1px solid #E8DFCF', fontSize: '13.5px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+                <button type="button" onClick={() => supprimerEtape(i)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px', flexShrink: 0 }}><IconX size={16} /></button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={ajouterEtape} style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1.5px dashed #D9CDB8', background: 'transparent', borderRadius: '11px', padding: '9px 12px', color: '#8A7B68', fontSize: '13px', fontWeight: '700', cursor: 'pointer', marginBottom: '14px' }}>
+            <IconClock size={15} /> Ajouter une étape
+          </button>
+
+          <label style={{ fontSize: '11px', color: '#8A7B68', fontWeight: '700', display: 'block', marginBottom: '5px' }}>Notes / idées (optionnel)</label>
+          <textarea placeholder="ex: Ne pas oublier de réserver le resto" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={{ ...inputStyle, marginBottom: '14px', resize: 'vertical', fontFamily: 'inherit' }} />
+
+          <button type="submit" style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}>
+            {idEnEdition ? 'Enregistrer' : 'Créer la fiche'}
+          </button>
+        </form>
+      ) : (
+        <button onClick={() => setShowForm(true)} style={{ width: '100%', padding: '14px', backgroundColor: '#C2707D', color: '#FFF', border: 'none', borderRadius: '16px', fontWeight: '800', cursor: 'pointer', fontSize: '14.5px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+          <IconPlus size={18} /> Planifier une date
+        </button>
+      )}
+
+      {plans.length === 0 ? (
+        <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF', color: '#B5A793', fontSize: '13.5px' }}>
+          Aucune date planifiée pour l'instant.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {plans.map((p) => {
+            const passe = p.date < aujourdHui;
+            return (
+              <div key={p.id} style={{ backgroundColor: '#FFFFFF', border: p.date === aujourdHui ? '1.5px solid #C2707D' : '1px solid #E8DFCF', borderRadius: '16px', padding: '14px', opacity: passe ? 0.65 : 1 }}>
+                <div onClick={() => setPlanOuvert(planOuvert === p.id ? null : p.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#2B2420' }}>💕 {p.titre}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', color: '#8A7B68', display: 'flex', alignItems: 'center', gap: '3px' }}><IconCalendar size={12} /> {formatDate(p.date)}</span>
+                      {p.lieu && <span style={{ fontSize: '12px', color: '#8A7B68', display: 'flex', alignItems: 'center', gap: '3px' }}><IconMapPin size={12} /> {p.lieu}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0, alignItems: 'center' }}>
+                    <button onClick={(e) => { e.stopPropagation(); commencerEdition(p); }} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconPencil size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(p); }} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '5px' }}><IconTrash size={16} /></button>
+                    <IconChevronDown size={16} color="#B5A793" style={{ transform: planOuvert === p.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', marginLeft: '2px' }} />
+                  </div>
+                </div>
+
+                {planOuvert === p.id && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #F1E8D8' }}>
+                    {p.etapes && p.etapes.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {p.etapes.map((et, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ width: '44px', flexShrink: 0, fontSize: '12px', fontWeight: '800', color: '#C2707D' }}>{et.heure || '—'}</span>
+                            <span style={{ flex: 1, fontSize: '13px', color: '#2B2420', backgroundColor: '#F8EFF2', padding: '7px 10px', borderRadius: '9px' }}>{et.texte}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ margin: 0, fontSize: '12.5px', color: '#B5A793' }}>Aucune étape détaillée.</p>
+                    )}
+                    {p.notes && (
+                      <p style={{ margin: '10px 0 0 0', fontSize: '12.5px', color: '#475569', whiteSpace: 'pre-line' }}>{p.notes}</p>
                     )}
                   </div>
                 )}
