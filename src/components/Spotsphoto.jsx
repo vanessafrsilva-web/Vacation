@@ -1,5 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { db, storage } from '../firebase';
+// Import défensif : si "storage" n'est pas (encore) exporté par ../firebase,
+// un import nommé classique ferait planter le chargement de TOUTE l'app
+// (page blanche). L'import en namespace évite ce risque — l'app se charge
+// normalement, seul l'upload de photo réclamera "storage" une fois utilisé.
+import { db } from '../firebase';
+import * as firebaseModule from '../firebase';
+const storage = firebaseModule.storage;
 import {
   collection, onSnapshot, addDoc, updateDoc, doc, writeBatch, serverTimestamp
 } from 'firebase/firestore';
