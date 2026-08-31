@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
-  IconArrowLeft, IconPlus, IconX, IconCamera, IconExternalLink, IconCheck
+  IconArrowLeft, IconPlus, IconX, IconCamera, IconExternalLink, IconCheck, IconMaximize
 } from '@tabler/icons-react';
 
 /*
@@ -150,6 +150,29 @@ function Badge({ children, color }) {
   );
 }
 
+function PhotoLightbox({ url, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,16,13,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: '20px' }}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Fermer"
+        style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top))', right: '16px', border: 'none', backgroundColor: 'rgba(255,255,255,0.15)', color: '#FFF', width: '38px', height: '38px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <IconX size={20} />
+      </button>
+      <img
+        src={url}
+        alt="Photo agrandie"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
+      />
+    </div>
+  );
+}
+
 function AddSpotModal({ onClose, onAdd }) {
   const [form, setForm] = useState({ nom: '', commune: '', canton: '', categorie: 'village', adresse: '', lienInspo: '' });
   const [enregistrement, setEnregistrement] = useState(false);
@@ -215,7 +238,7 @@ function AddSpotModal({ onClose, onAdd }) {
   );
 }
 
-function MarkVisitedModal({ spot, onClose, onSave, monNom }) {
+function MarkVisitedModal({ spot, onClose, onSave, monNom, onExpandPhoto }) {
   const [photoUrl, setPhotoUrl] = useState(spot.photoUrl || null);
   const [previewLocal, setPreviewLocal] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -269,8 +292,20 @@ function MarkVisitedModal({ spot, onClose, onSave, monNom }) {
 
         <div style={{ margin: '16px 0' }}>
           {photoAffichee ? (
-            <div style={{ position: 'relative' }}>
-              <img src={photoAffichee} alt={spot.nom} style={{ width: '100%', height: '190px', objectFit: 'cover', borderRadius: '16px' }} />
+            <div style={{ position: 'relative', backgroundColor: '#F1E8D8', borderRadius: '16px', overflow: 'hidden' }}>
+              <img
+                src={photoAffichee}
+                alt={spot.nom}
+                onClick={() => onExpandPhoto(photoAffichee)}
+                style={{ width: '100%', maxHeight: '340px', objectFit: 'contain', display: 'block', cursor: 'zoom-in' }}
+              />
+              <button
+                onClick={() => onExpandPhoto(photoAffichee)}
+                aria-label="Agrandir la photo"
+                style={{ position: 'absolute', top: '10px', right: '10px', backgroundColor: 'rgba(255,255,255,0.92)', color: '#2B2420', border: 'none', width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <IconMaximize size={16} />
+              </button>
               <label style={{ position: 'absolute', bottom: '10px', right: '10px', backgroundColor: 'rgba(255,255,255,0.92)', color: '#2B2420', fontSize: '12px', fontWeight: '700', padding: '7px 13px', borderRadius: '999px', cursor: 'pointer' }}>
                 {uploading ? 'Envoi...' : 'Changer'}
                 <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} disabled={uploading} />
@@ -320,6 +355,7 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
   const [filtreStatut, setFiltreStatut] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [spotEnVisite, setSpotEnVisite] = useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
@@ -446,7 +482,16 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
                     <div key={spot.id} onClick={() => setSpotEnVisite(spot)} style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', border: '1px solid #E8DFCF', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
                       <div style={{ height: '110px', backgroundColor: '#F1E8D8', position: 'relative' }}>
                         {spot.photoUrl ? (
-                          <img src={spot.photoUrl} alt={spot.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <>
+                            <img src={spot.photoUrl} alt={spot.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setLightboxUrl(spot.photoUrl); }}
+                              aria-label="Agrandir la photo"
+                              style={{ position: 'absolute', top: '6px', left: '6px', backgroundColor: 'rgba(255,255,255,0.85)', color: '#2B2420', border: 'none', width: '26px', height: '26px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <IconMaximize size={13} />
+                            </button>
+                          </>
                         ) : (
                           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <IconCamera size={22} color="#D9CDB8" />
@@ -488,8 +533,9 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
 
       {showAdd && <AddSpotModal onClose={() => setShowAdd(false)} onAdd={ajouterSpot} />}
       {spotEnVisite && (
-        <MarkVisitedModal spot={spotEnVisite} onClose={() => setSpotEnVisite(null)} onSave={enregistrerVisite} monNom={monNom} />
+        <MarkVisitedModal spot={spotEnVisite} onClose={() => setSpotEnVisite(null)} onSave={enregistrerVisite} monNom={monNom} onExpandPhoto={setLightboxUrl} />
       )}
+      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 };
