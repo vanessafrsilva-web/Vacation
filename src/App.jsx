@@ -22,7 +22,8 @@ import { Auth } from './components/Auth';
 import { Profil } from './components/Profil';
 import { Galerie } from './components/Galerie';
 import { Perso } from './components/Perso';
-import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2, IconTool, IconHeart } from '@tabler/icons-react';
+import { SpotsPhoto } from './components/SpotsPhoto';
+import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2, IconTool, IconHeart, IconCamera } from '@tabler/icons-react';
 
 function App() {
   const [appDemarree, setAppDemarree] = useState(false);
@@ -1149,6 +1150,10 @@ function App() {
     return <Perso utilisateur={utilisateur} onClose={() => setModuleActif(null)} />;
   }
 
+  if (moduleActif === 'spots-photo') {
+    return <SpotsPhoto utilisateur={utilisateur} onClose={() => setModuleActif(null)} />;
+  }
+
   // --- ÉCRAN D'ACCUEIL : choix entre les deux modules ---
   if (moduleActif === null) {
     return (
@@ -1213,6 +1218,23 @@ function App() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</div>
               <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Voiture, tâches, recettes et vos petites attentions</div>
+            </div>
+            <IconArrowRight size={20} color="#B5A793" />
+          </div>
+
+          <div
+            onClick={() => setModuleActif('spots-photo')}
+            style={{
+              backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+            }}
+          >
+            <div style={{ backgroundColor: '#F1E8D8', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+              <IconCamera size={30} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Spots Photo</div>
+              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Les grands spots suisses, un par un</div>
             </div>
             <IconArrowRight size={20} color="#B5A793" />
           </div>
