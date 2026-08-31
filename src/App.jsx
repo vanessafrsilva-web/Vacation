@@ -1233,7 +1233,7 @@ function App() {
               <IconCamera size={30} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Spots Photo</div>
+              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Grand Tour CH</div>
               <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Les grands spots suisses, un par un</div>
             </div>
             <IconArrowRight size={20} color="#B5A793" />
@@ -1529,4 +1529,5 @@ function App() {
     </div>
   );
 }
+
 export default App;
