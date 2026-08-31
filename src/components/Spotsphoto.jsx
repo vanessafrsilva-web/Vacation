@@ -1,36 +1,34 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from 'react';
+import { db, storage } from '../firebase';
+import {
+  collection, onSnapshot, addDoc, updateDoc, doc, writeBatch, serverTimestamp
+} from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import {
+  IconArrowLeft, IconPlus, IconX, IconCamera, IconExternalLink, IconCheck
+} from '@tabler/icons-react';
 
 /*
-  SpotsPhoto.jsx — module "Grands Spots Photo Suisses" pour Les Nomades
-  ------------------------------------------------------------------
-  Intégration Firestore (à brancher, sur le modèle de Papilles Nomades / Galerie) :
+  SpotsPhoto.jsx — module "Spots Photo" pour Les Nomades
+  -------------------------------------------------------
+  Module global (comme Papilles Nomades / Perso), choisi depuis l'écran
+  d'accueil et non lié à un voyage précis — au fil de vos différents
+  voyages, vous cochez les spots visités.
 
-    collection: "nomadeSpots" (partagée entre voyageurs, comme Papilles Nomades)
-    doc shape:
-      {
-        nom: string,
-        commune: string,
-        canton: string,
-        categorie: "village" | "montagne" | "lac" | "pont" | "glacier" | "chateau" | "ville",
-        adresse: string,          // point de vue / adresse précise
-        lienInspo?: string,       // photo de référence trouvée sur le net
-        statut: "a_faire" | "fait",
-        photoUrl?: string,        // notre photo, upload Firebase Storage (comme Galerie.jsx)
-        dateVisite?: string,
-        notes?: string,
-        origine: "base" | "ajoute",
-        createdBy?: string,
-      }
+  Collection Firestore partagée : "nomadeSpotsPhoto"
+    { nom, commune, canton, categorie, adresse, lienInspo, statut,
+      photoUrl, dateVisite, notes, origine, createdBy }
 
-  Ici : données en mémoire (useState) pour prototypage. Remplacer par
-  onSnapshot(collection(db, "nomadeSpots")) + updateDoc / addDoc.
-  L'upload photo est simulé en local (FileReader → dataURL) : à remplacer par
-  uploadBytes(storageRef, file) puis getDownloadURL, exactement comme dans Galerie.jsx.
+  Au tout premier chargement (collection vide), la liste officielle des 87
+  Photo Spots du Grand Tour of Switzerland est importée automatiquement en
+  base via un writeBatch — ensuite tout passe par Firestore normalement.
+
+  Suppose que `storage` est exporté depuis ../firebase.js, comme utilisé
+  par Galerie.jsx pour l'upload de photos. Si ce n'est pas le cas, il
+  suffit d'y ajouter : export const storage = getStorage(app);
 */
 
-// Liste officielle des Photo Spots du "Grand Tour of Switzerland" (myswitzerland.com),
-// récupérée le 31.08.2026. lienInspo pointe vers la fiche officielle de chaque spot.
-const SEED_SPOTS = [
+const SPOTS_OFFICIELS_SEED = [
   { id: "1", nom: "Bernina Glaciers", commune: "Pontresina", canton: "GR", categorie: "glacier", adresse: "Pontresina", lienInspo: "https://www.myswitzerland.com/en-ch/experiences/photo-spot-bernina-glaciers/", origine: "base", statut: "a_faire" },
   { id: "2", nom: "Genève", commune: "Genève", canton: "GE", categorie: "ville", adresse: "Genève", lienInspo: "https://www.myswitzerland.com/en-ch/experiences/photo-spot-geneva/", origine: "base", statut: "a_faire" },
   { id: "3", nom: "Monte Ceneri", commune: "Rivera", canton: "TI", categorie: "montagne", adresse: "Piazza Ticino, Rivera", lienInspo: "https://www.myswitzerland.com/en-ch/experiences/photo-spot-monte-ceneri/", origine: "base", statut: "a_faire" },
@@ -129,9 +127,7 @@ const CATEGORIES = {
   ville: { label: "Ville", color: "#5C5548" },
   nature: { label: "Nature", color: "#4B6B4F" },
   autre: { label: "Autre", color: "#6E655C" },
-};
-
-function fileToDataUrl(file) {
+};function fileToDataUrlPreview(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
@@ -142,376 +138,340 @@ function fileToDataUrl(file) {
 
 function Badge({ children, color }) {
   return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-      style={{ backgroundColor: `${color}1a`, color }}
-    >
+    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: '700', backgroundColor: `${color}18`, color }}>
       {children}
     </span>
   );
 }
 
 function AddSpotModal({ onClose, onAdd }) {
-  const [form, setForm] = useState({
-    nom: "", commune: "", canton: "", categorie: "village", adresse: "", lienInspo: "",
-  });
+  const [form, setForm] = useState({ nom: '', commune: '', canton: '', categorie: 'village', adresse: '', lienInspo: '' });
+  const [enregistrement, setEnregistrement] = useState(false);
+  const peutEnregistrer = form.nom.trim() && form.commune.trim();
 
-  const canSave = form.nom.trim() && form.commune.trim();
+  const champ = { width: '100%', marginTop: '6px', padding: '11px 12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#F7F1E8', color: '#2B2420', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+  const label = { fontSize: '12.5px', color: '#8A7B68', fontWeight: '600' };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-      <div className="bg-[#F4F5F1] w-full sm:max-w-md sm:rounded-lg rounded-t-2xl p-5 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-semibold text-[#243228] mb-4">Ajouter un spot</h3>
-        <div className="space-y-3">
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(43,36,32,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 2000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderRadius: '24px 24px 0 0', padding: '22px', width: '100%', maxWidth: '460px', maxHeight: '86vh', overflowY: 'auto', fontFamily: 'inherit' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#2B2420' }}>Ajouter un spot</h3>
+          <button onClick={onClose} aria-label="Fermer" style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconX size={16} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
-            <label className="text-sm text-[#5C6B60]">Nom du spot</label>
-            <input
-              className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-              value={form.nom}
-              onChange={(e) => setForm({ ...form, nom: e.target.value })}
-              placeholder="ex: Pont suspendu de Tibet"
-            />
+            <label style={label}>Nom du spot</label>
+            <input style={champ} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="ex: Pont suspendu de Tibet" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm text-[#5C6B60]">Commune</label>
-              <input
-                className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-                value={form.commune}
-                onChange={(e) => setForm({ ...form, commune: e.target.value })}
-              />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={label}>Commune</label>
+              <input style={champ} value={form.commune} onChange={(e) => setForm({ ...form, commune: e.target.value })} />
             </div>
-            <div>
-              <label className="text-sm text-[#5C6B60]">Canton</label>
-              <input
-                className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-                value={form.canton}
-                onChange={(e) => setForm({ ...form, canton: e.target.value })}
-                placeholder="ex: VS"
-              />
+            <div style={{ width: '90px' }}>
+              <label style={label}>Canton</label>
+              <input style={champ} value={form.canton} onChange={(e) => setForm({ ...form, canton: e.target.value })} placeholder="VS" />
             </div>
           </div>
           <div>
-            <label className="text-sm text-[#5C6B60]">Catégorie</label>
-            <select
-              className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-              value={form.categorie}
-              onChange={(e) => setForm({ ...form, categorie: e.target.value })}
-            >
-              {Object.entries(CATEGORIES).map(([key, c]) => (
-                <option key={key} value={key}>{c.label}</option>
-              ))}
+            <label style={label}>Catégorie</label>
+            <select style={champ} value={form.categorie} onChange={(e) => setForm({ ...form, categorie: e.target.value })}>
+              {Object.entries(CATEGORIES).map(([key, c]) => <option key={key} value={key}>{c.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-sm text-[#5C6B60]">Adresse / point de vue</label>
-            <input
-              className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-              value={form.adresse}
-              onChange={(e) => setForm({ ...form, adresse: e.target.value })}
-            />
+            <label style={label}>Adresse / point de vue</label>
+            <input style={champ} value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
           </div>
           <div>
-            <label className="text-sm text-[#5C6B60]">Lien photo d'inspiration (optionnel)</label>
-            <input
-              className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-              value={form.lienInspo}
-              onChange={(e) => setForm({ ...form, lienInspo: e.target.value })}
-              placeholder="https://..."
-            />
+            <label style={label}>Lien d'inspiration (optionnel)</label>
+            <input style={champ} value={form.lienInspo} onChange={(e) => setForm({ ...form, lienInspo: e.target.value })} placeholder="https://..." />
           </div>
         </div>
-        <div className="flex justify-end gap-2 mt-5">
-          <button onClick={onClose} className="px-4 py-2 rounded text-[#5C6B60] hover:bg-[#E9EBE4]">
-            Annuler
-          </button>
-          <button
-            disabled={!canSave}
-            onClick={() => canSave && onAdd({ ...form, origine: "ajoute", statut: "a_faire" })}
-            className="px-4 py-2 rounded bg-[#3E5C4A] text-white disabled:opacity-40"
-          >
-            Ajouter
-          </button>
-        </div>
+
+        <button
+          disabled={!peutEnregistrer || enregistrement}
+          onClick={async () => {
+            setEnregistrement(true);
+            await onAdd({ ...form, origine: 'ajoute', statut: 'a_faire' });
+            setEnregistrement(false);
+          }}
+          style={{ width: '100%', marginTop: '18px', padding: '15px', borderRadius: '14px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', fontSize: '15px', cursor: peutEnregistrer ? 'pointer' : 'default', opacity: peutEnregistrer ? 1 : 0.5, fontFamily: 'inherit' }}
+        >
+          {enregistrement ? 'Ajout...' : 'Ajouter'}
+        </button>
       </div>
     </div>
   );
 }
 
-function MarkVisitedModal({ spot, onClose, onSave }) {
+function MarkVisitedModal({ spot, onClose, onSave, monNom }) {
   const [photoUrl, setPhotoUrl] = useState(spot.photoUrl || null);
-  const [dateVisite, setDateVisite] = useState(spot.dateVisite || new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState(spot.notes || "");
+  const [previewLocal, setPreviewLocal] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [dateVisite, setDateVisite] = useState(spot.dateVisite || new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState(spot.notes || '');
+  const [enregistrement, setEnregistrement] = useState(false);
+
+  const champ = { width: '100%', marginTop: '6px', padding: '11px 12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#F7F1E8', color: '#2B2420', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+  const label = { fontSize: '12.5px', color: '#8A7B68', fontWeight: '600' };
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    // TODO: remplacer par upload Firebase Storage (voir Galerie.jsx) puis stocker l'URL retournée
-    const dataUrl = await fileToDataUrl(file);
-    setPhotoUrl(dataUrl);
-    setUploading(false);
+    try {
+      const previewData = await fileToDataUrlPreview(file);
+      setPreviewLocal(previewData);
+      const chemin = `nomadeSpotsPhoto/${spot.id}_${Date.now()}_${file.name}`;
+      const refStockage = storageRef(storage, chemin);
+      await uploadBytes(refStockage, file);
+      const url = await getDownloadURL(refStockage);
+      setPhotoUrl(url);
+    } catch (error) {
+      console.error("Erreur lors de l'upload de la photo :", error);
+      alert("La photo n'a pas pu être envoyée. Réessayez.");
+    } finally {
+      setUploading(false);
+    }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-      <div className="bg-[#F4F5F1] w-full sm:max-w-md sm:rounded-lg rounded-t-2xl p-5 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-semibold text-[#243228] mb-1">{spot.nom}</h3>
-        <p className="text-sm text-[#5C6B60] mb-4">{spot.commune} · {spot.canton}</p>
+  const photoAffichee = previewLocal || photoUrl;
 
-        <div className="mb-4">
-          <label className="text-sm text-[#5C6B60] block mb-2">Notre photo</label>
-          {photoUrl ? (
-            <div className="relative">
-              <img src={photoUrl} alt={spot.nom} className="w-full h-48 object-cover rounded-lg" />
-              <label className="absolute bottom-2 right-2 bg-white/90 text-[#243228] text-xs px-3 py-1.5 rounded-full cursor-pointer shadow">
-                Changer
-                <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(43,36,32,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 2000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#FFFFFF', borderRadius: '24px 24px 0 0', padding: '22px', width: '100%', maxWidth: '460px', maxHeight: '86vh', overflowY: 'auto', fontFamily: 'inherit' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#2B2420' }}>{spot.nom}</h3>
+            <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#8A7B68' }}>{spot.commune}{spot.canton ? ` · ${spot.canton}` : ''}</p>
+          </div>
+          <button onClick={onClose} aria-label="Fermer" style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', width: '32px', height: '32px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <IconX size={16} />
+          </button>
+        </div>
+
+        {spot.lienInspo && (
+          <a href={spot.lienInspo} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12.5px', color: '#B8863C', fontWeight: '700', margin: '8px 0 0 0', textDecoration: 'none' }}>
+            Voir la fiche officielle <IconExternalLink size={13} />
+          </a>
+        )}
+
+        <div style={{ margin: '16px 0' }}>
+          {photoAffichee ? (
+            <div style={{ position: 'relative' }}>
+              <img src={photoAffichee} alt={spot.nom} style={{ width: '100%', height: '190px', objectFit: 'cover', borderRadius: '16px' }} />
+              <label style={{ position: 'absolute', bottom: '10px', right: '10px', backgroundColor: 'rgba(255,255,255,0.92)', color: '#2B2420', fontSize: '12px', fontWeight: '700', padding: '7px 13px', borderRadius: '999px', cursor: 'pointer' }}>
+                {uploading ? 'Envoi...' : 'Changer'}
+                <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} disabled={uploading} />
               </label>
             </div>
           ) : (
-            <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-[#C6CCBE] rounded-lg cursor-pointer text-[#5C6B60] hover:bg-[#E9EBE4]">
-              {uploading ? "Import en cours..." : "+ Ajouter votre photo"}
-              <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '160px', border: '2px dashed #D9CDB8', borderRadius: '16px', cursor: 'pointer', color: '#8A7B68', fontSize: '13px', fontWeight: '600' }}>
+              <IconCamera size={26} color="#B5A793" />
+              {uploading ? 'Envoi de la photo...' : 'Ajouter votre photo'}
+              <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} disabled={uploading} />
             </label>
           )}
         </div>
 
-        <div className="mb-3">
-          <label className="text-sm text-[#5C6B60]">Date de visite</label>
-          <input
-            type="date"
-            className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-            value={dateVisite}
-            onChange={(e) => setDateVisite(e.target.value)}
-          />
+        <div style={{ marginBottom: '10px' }}>
+          <label style={label}>Date de visite</label>
+          <input type="date" style={champ} value={dateVisite} onChange={(e) => setDateVisite(e.target.value)} />
         </div>
-        <div className="mb-4">
-          <label className="text-sm text-[#5C6B60]">Notes</label>
-          <textarea
-            className="w-full mt-1 px-3 py-2 rounded border border-[#D3D8CE] bg-white text-[#243228] focus:outline-none focus:ring-2 focus:ring-[#3D6E80]"
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="météo, monde sur place, meilleur moment de la journée..."
-          />
+        <div style={{ marginBottom: '4px' }}>
+          <label style={label}>Notes</label>
+          <textarea style={{ ...champ, resize: 'none' }} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="météo, monde sur place, meilleur moment..." />
         </div>
 
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded text-[#5C6B60] hover:bg-[#E9EBE4]">
-            Annuler
-          </button>
-          <button
-            onClick={() => onSave({ statut: "fait", photoUrl, dateVisite, notes })}
-            className="px-4 py-2 rounded bg-[#3E5C4A] text-white"
-          >
-            Valider
-          </button>
-        </div>
+        <button
+          disabled={enregistrement || uploading}
+          onClick={async () => {
+            setEnregistrement(true);
+            await onSave({ statut: 'fait', photoUrl: photoUrl || null, dateVisite, notes, marquePar: monNom });
+            setEnregistrement(false);
+          }}
+          style={{ width: '100%', marginTop: '16px', padding: '15px', borderRadius: '14px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', fontSize: '15px', cursor: 'pointer', opacity: (enregistrement || uploading) ? 0.6 : 1, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+        >
+          <IconCheck size={17} /> {enregistrement ? 'Enregistrement...' : 'Valider'}
+        </button>
       </div>
     </div>
   );
 }
 
-export default function SpotsPhoto() {
-  const [spots, setSpots] = useState(SEED_SPOTS);
-  const [view, setView] = useState("grille"); // "grille" | "tableau"
-  const [filterCanton, setFilterCanton] = useState("");
-  const [filterCategorie, setFilterCategorie] = useState("");
-  const [filterStatut, setFilterStatut] = useState("");
+export const SpotsPhoto = ({ utilisateur, onClose }) => {
+  const [spots, setSpots] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [vue, setVue] = useState('grille'); // 'grille' | 'tableau'
+  const [filtreCanton, setFiltreCanton] = useState('');
+  const [filtreCategorie, setFiltreCategorie] = useState('');
+  const [filtreStatut, setFiltreStatut] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [visitingSpot, setVisitingSpot] = useState(null);
+  const [spotEnVisite, setSpotEnVisite] = useState(null);
 
-  const cantons = useMemo(
-    () => [...new Set(spots.map((s) => s.canton).filter(Boolean))].sort(),
-    [spots]
-  );
+  const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
-  const filtered = useMemo(() => {
-    return spots.filter((s) =>
-      (!filterCanton || s.canton === filterCanton) &&
-      (!filterCategorie || s.categorie === filterCategorie) &&
-      (!filterStatut || s.statut === filterStatut)
-    );
-  }, [spots, filterCanton, filterCategorie, filterStatut]);
+  // Chargement + import initial de la liste officielle si la base est vide
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'nomadeSpotsPhoto'), async (snapshot) => {
+      if (snapshot.empty) {
+        try {
+          const batch = writeBatch(db);
+          SPOTS_OFFICIELS_SEED.forEach((s) => {
+            const { id, ...donnees } = s;
+            const ref = doc(collection(db, 'nomadeSpotsPhoto'));
+            batch.set(ref, donnees);
+          });
+          await batch.commit();
+        } catch (error) {
+          console.error("Erreur lors de l'import initial des spots :", error);
+        }
+        return; // le prochain onSnapshot rechargera les données importées
+      }
+      const donnees = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      donnees.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+      setSpots(donnees);
+      setChargement(false);
+    }, (error) => console.error('Erreur de chargement des spots :', error));
+    return () => unsub();
+  }, []);
 
-  const doneCount = spots.filter((s) => s.statut === "fait").length;
+  const cantons = useMemo(() => [...new Set(spots.map((s) => s.canton).filter(Boolean))].sort(), [spots]);
 
-  const handleAddSpot = (data) => {
-    setSpots((prev) => [...prev, { ...data, id: String(Date.now()) }]);
-    setShowAdd(false);
-    // TODO: addDoc(collection(db, "nomadeSpots"), data)
+  const filtres = useMemo(() => spots.filter((s) =>
+    (!filtreCanton || s.canton === filtreCanton) &&
+    (!filtreCategorie || s.categorie === filtreCategorie) &&
+    (!filtreStatut || s.statut === filtreStatut)
+  ), [spots, filtreCanton, filtreCategorie, filtreStatut]);
+
+  const nbFaits = spots.filter((s) => s.statut === 'fait').length;
+
+  const ajouterSpot = async (donnees) => {
+    try {
+      await addDoc(collection(db, 'nomadeSpotsPhoto'), { ...donnees, createdBy: monNom, createdAt: serverTimestamp() });
+      setShowAdd(false);
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du spot :", error);
+      alert("Le spot n'a pas pu être ajouté. Réessayez.");
+    }
   };
 
-  const handleSaveVisit = (updates) => {
-    setSpots((prev) =>
-      prev.map((s) => (s.id === visitingSpot.id ? { ...s, ...updates } : s))
-    );
-    setVisitingSpot(null);
-    // TODO: updateDoc(doc(db, "nomadeSpots", visitingSpot.id), updates)
+  const enregistrerVisite = async (maj) => {
+    try {
+      await updateDoc(doc(db, 'nomadeSpotsPhoto', spotEnVisite.id), maj);
+      setSpotEnVisite(null);
+    } catch (error) {
+      console.error("Erreur lors de l'enregistrement de la visite :", error);
+      alert("La visite n'a pas pu être enregistrée. Réessayez.");
+    }
   };
+
+  const bouton = { display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', color: '#2B2420', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '8px 13px', borderRadius: '999px', fontFamily: 'inherit' };
+  const filtreSelect = { padding: '8px 12px', borderRadius: '999px', fontSize: '12.5px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontFamily: 'inherit', fontWeight: '600' };
 
   return (
-    <div className="min-h-screen bg-[#EDEFE8] font-sans">
-      <div className="max-w-5xl mx-auto px-4 py-6">
-        <div className="flex items-baseline justify-between mb-1">
-          <h1 className="text-2xl font-semibold text-[#243228]">Spots Photo Suisses</h1>
-          <span className="text-sm text-[#5C6B60]">{doneCount} / {spots.length} faits</span>
-        </div>
-        <p className="text-[#5C6B60] mb-5">Les grands classiques à capturer, un par un.</p>
+    <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif", paddingBottom: '40px' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap');`}</style>
 
-        {/* Barre de filtres */}
-        <div className="flex flex-wrap items-center gap-2 mb-5">
-          <select
-            value={filterStatut}
-            onChange={(e) => setFilterStatut(e.target.value)}
-            className="px-3 py-1.5 rounded-full text-sm border border-[#D3D8CE] bg-white text-[#243228]"
-          >
-            <option value="">Tous statuts</option>
-            <option value="a_faire">À faire</option>
-            <option value="fait">Fait</option>
-          </select>
-          <select
-            value={filterCanton}
-            onChange={(e) => setFilterCanton(e.target.value)}
-            className="px-3 py-1.5 rounded-full text-sm border border-[#D3D8CE] bg-white text-[#243228]"
-          >
-            <option value="">Tous cantons</option>
-            {cantons.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select
-            value={filterCategorie}
-            onChange={(e) => setFilterCategorie(e.target.value)}
-            className="px-3 py-1.5 rounded-full text-sm border border-[#D3D8CE] bg-white text-[#243228]"
-          >
-            <option value="">Toutes catégories</option>
-            {Object.entries(CATEGORIES).map(([key, c]) => (
-              <option key={key} value={key}>{c.label}</option>
-            ))}
-          </select>
-
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={() => setView(view === "grille" ? "tableau" : "grille")}
-              className="px-3 py-1.5 rounded-full text-sm border border-[#D3D8CE] bg-white text-[#243228]"
-            >
-              Vue {view === "grille" ? "tableau" : "grille"}
-            </button>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="px-3 py-1.5 rounded-full text-sm bg-[#3E5C4A] text-white"
-            >
-              + Ajouter un spot
-            </button>
+      <div style={{ padding: 'calc(15px + env(safe-area-inset-top)) 15px 15px 15px', backgroundColor: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid #E8DFCF' }}>
+        <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button onClick={onClose} aria-label="Retour" style={{ flexShrink: 0, width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '14px', color: '#2B2420', cursor: 'pointer' }}>
+            <IconArrowLeft size={20} />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Spots Photo</h1>
+            <p style={{ margin: 0, fontSize: '12px', color: '#8A7B68', fontWeight: '600' }}>{nbFaits} / {spots.length || '...'} faits</p>
           </div>
         </div>
+      </div>
 
-        {view === "grille" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((spot) => {
-              const cat = CATEGORIES[spot.categorie] || {};
-              const done = spot.statut === "fait";
-              return (
-                <div key={spot.id} className="bg-white rounded-lg overflow-hidden border border-[#E1E4DA] flex flex-col">
-                  <div className="h-36 bg-[#DDE1D4] relative">
-                    {spot.photoUrl ? (
-                      <img src={spot.photoUrl} alt={spot.nom} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-[#8A9284] text-sm">
-                        <span>Pas encore de photo</span>
-                        {spot.lienInspo && (
-                          <a
-                            href={spot.lienInspo}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs text-[#3D6E80] underline"
-                          >
-                            Voir la fiche officielle
-                          </a>
+      <div style={{ maxWidth: '500px', margin: '0 auto', padding: '16px 15px 0 15px' }}>
+        {chargement ? (
+          <div style={{ padding: '60px 0', textAlign: 'center', color: '#B5A793', fontSize: '13px', fontWeight: '600' }}>Chargement des spots...</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+              <select style={filtreSelect} value={filtreStatut} onChange={(e) => setFiltreStatut(e.target.value)}>
+                <option value="">Tous statuts</option>
+                <option value="a_faire">À faire</option>
+                <option value="fait">Fait</option>
+              </select>
+              <select style={filtreSelect} value={filtreCanton} onChange={(e) => setFiltreCanton(e.target.value)}>
+                <option value="">Tous cantons</option>
+                {cantons.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select style={filtreSelect} value={filtreCategorie} onChange={(e) => setFiltreCategorie(e.target.value)}>
+                <option value="">Toutes catégories</option>
+                {Object.entries(CATEGORIES).map(([key, c]) => <option key={key} value={key}>{c.label}</option>)}
+              </select>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                <button style={bouton} onClick={() => setVue(vue === 'grille' ? 'tableau' : 'grille')}>
+                  Vue {vue === 'grille' ? 'tableau' : 'grille'}
+                </button>
+                <button style={{ ...bouton, backgroundColor: '#B8863C', color: '#FFF', border: 'none' }} onClick={() => setShowAdd(true)}>
+                  <IconPlus size={14} /> Ajouter
+                </button>
+              </div>
+            </div>
+
+            {vue === 'grille' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {filtres.map((spot) => {
+                  const cat = CATEGORIES[spot.categorie] || {};
+                  const fait = spot.statut === 'fait';
+                  return (
+                    <div key={spot.id} onClick={() => setSpotEnVisite(spot)} style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', border: '1px solid #E8DFCF', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ height: '110px', backgroundColor: '#F1E8D8', position: 'relative' }}>
+                        {spot.photoUrl ? (
+                          <img src={spot.photoUrl} alt={spot.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <IconCamera size={22} color="#D9CDB8" />
+                          </div>
+                        )}
+                        {fait && (
+                          <span style={{ position: 'absolute', top: '8px', right: '8px', backgroundColor: '#2B2420', color: '#FFF', fontSize: '10px', fontWeight: '800', padding: '3px 9px', borderRadius: '999px' }}>Fait</span>
                         )}
                       </div>
-                    )}
-                    {done && (
-                      <span className="absolute top-2 right-2 bg-[#3E5C4A] text-white text-xs px-2 py-0.5 rounded-full">
-                        Fait
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-3 flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge color={cat.color}>{cat.label}</Badge>
-                      <span className="text-xs text-[#8A9284]">{spot.canton}</span>
+                      <div style={{ padding: '10px 12px 12px 12px' }}>
+                        <Badge color={cat.color || '#8A7B68'}>{cat.label || spot.categorie}</Badge>
+                        <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#2B2420', marginTop: '6px', lineHeight: '1.25' }}>{spot.nom}</div>
+                        <div style={{ fontSize: '11.5px', color: '#8A7B68', marginTop: '2px' }}>{spot.commune}{spot.canton ? ` · ${spot.canton}` : ''}</div>
+                      </div>
                     </div>
-                    <h3 className="font-medium text-[#243228] leading-snug">{spot.nom}</h3>
-                    <p className="text-xs text-[#5C6B60] mt-0.5">{spot.adresse || spot.commune}</p>
-                    {done && spot.dateVisite && (
-                      <p className="text-xs text-[#8A9284] mt-1">Visité le {spot.dateVisite}</p>
-                    )}
-                    <button
-                      onClick={() => setVisitingSpot(spot)}
-                      className={`mt-auto pt-3 text-sm font-medium ${done ? "text-[#5C6B60]" : "text-[#3D6E80]"}`}
-                    >
-                      {done ? "Modifier" : "Marquer comme fait →"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg border border-[#E1E4DA] overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[#5C6B60] border-b border-[#E1E4DA]">
-                  <th className="px-3 py-2 font-medium">Spot</th>
-                  <th className="px-3 py-2 font-medium">Canton</th>
-                  <th className="px-3 py-2 font-medium">Catégorie</th>
-                  <th className="px-3 py-2 font-medium">Adresse</th>
-                  <th className="px-3 py-2 font-medium">Statut</th>
-                  <th className="px-3 py-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((spot) => {
-                  const cat = CATEGORIES[spot.categorie] || {};
-                  const done = spot.statut === "fait";
-                  return (
-                    <tr key={spot.id} className="border-b border-[#F0F1EC] last:border-0">
-                      <td className="px-3 py-2 text-[#243228] font-medium">{spot.nom}</td>
-                      <td className="px-3 py-2 text-[#5C6B60]">{spot.canton}</td>
-                      <td className="px-3 py-2"><Badge color={cat.color}>{cat.label}</Badge></td>
-                      <td className="px-3 py-2 text-[#5C6B60]">{spot.adresse || spot.commune}</td>
-                      <td className="px-3 py-2">
-                        {done ? (
-                          <span className="text-[#3E5C4A]">Fait{spot.dateVisite ? ` · ${spot.dateVisite}` : ""}</span>
-                        ) : (
-                          <span className="text-[#8A9284]">À faire</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button onClick={() => setVisitingSpot(spot)} className="text-[#3D6E80] font-medium">
-                          {done ? "Modifier" : "Marquer fait"}
-                        </button>
-                      </td>
-                    </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            ) : (
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '18px', border: '1px solid #E8DFCF', overflow: 'hidden' }}>
+                {filtres.map((spot, i) => {
+                  const cat = CATEGORIES[spot.categorie] || {};
+                  const fait = spot.statut === 'fait';
+                  return (
+                    <div key={spot.id} onClick={() => setSpotEnVisite(spot)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', cursor: 'pointer', borderBottom: i < filtres.length - 1 ? '1px solid #F1E8D8' : 'none' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#2B2420' }}>{spot.nom}</div>
+                        <div style={{ fontSize: '11.5px', color: '#8A7B68', marginTop: '2px' }}>{spot.commune}{spot.canton ? ` · ${spot.canton}` : ''} · {cat.label}</div>
+                      </div>
+                      <span style={{ fontSize: '11.5px', fontWeight: '700', color: fait ? '#3B6D11' : '#B5A793' }}>{fait ? 'Fait' : 'À faire'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {showAdd && <AddSpotModal onClose={() => setShowAdd(false)} onAdd={handleAddSpot} />}
-      {visitingSpot && (
-        <MarkVisitedModal
-          spot={visitingSpot}
-          onClose={() => setVisitingSpot(null)}
-          onSave={handleSaveVisit}
-        />
+      {showAdd && <AddSpotModal onClose={() => setShowAdd(false)} onAdd={ajouterSpot} />}
+      {spotEnVisite && (
+        <MarkVisitedModal spot={spotEnVisite} onClose={() => setSpotEnVisite(null)} onSave={enregistrerVisite} monNom={monNom} />
       )}
     </div>
   );
-}
+};
