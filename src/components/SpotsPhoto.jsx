@@ -313,6 +313,7 @@ function MarkVisitedModal({ spot, onClose, onSave, monNom }) {
 export const SpotsPhoto = ({ utilisateur, onClose }) => {
   const [spots, setSpots] = useState([]);
   const [chargement, setChargement] = useState(true);
+  const [erreurChargement, setErreurChargement] = useState(null);
   const [vue, setVue] = useState('grille'); // 'grille' | 'tableau'
   const [filtreCanton, setFiltreCanton] = useState('');
   const [filtreCategorie, setFiltreCategorie] = useState('');
@@ -336,6 +337,8 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
           await batch.commit();
         } catch (error) {
           console.error("Erreur lors de l'import initial des spots :", error);
+          setErreurChargement(error?.message || String(error));
+          setChargement(false);
         }
         return; // le prochain onSnapshot rechargera les données importées
       }
@@ -343,7 +346,11 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
       donnees.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
       setSpots(donnees);
       setChargement(false);
-    }, (error) => console.error('Erreur de chargement des spots :', error));
+    }, (error) => {
+      console.error('Erreur de chargement des spots :', error);
+      setErreurChargement(error?.message || String(error));
+      setChargement(false);
+    });
     return () => unsub();
   }, []);
 
@@ -397,7 +404,12 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
       </div>
 
       <div style={{ maxWidth: '500px', margin: '0 auto', padding: '16px 15px 0 15px' }}>
-        {chargement ? (
+        {erreurChargement ? (
+          <div style={{ padding: '30px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '18px', border: '1px solid #F0C9C9' }}>
+            <p style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: '800', color: '#B3453A' }}>Erreur de chargement</p>
+            <p style={{ margin: 0, fontSize: '12.5px', color: '#8A7B68', wordBreak: 'break-word' }}>{erreurChargement}</p>
+          </div>
+        ) : chargement ? (
           <div style={{ padding: '60px 0', textAlign: 'center', color: '#B5A793', fontSize: '13px', fontWeight: '600' }}>Chargement des spots...</div>
         ) : (
           <>
