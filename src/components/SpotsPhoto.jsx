@@ -34,6 +34,12 @@ import {
   suffit d'y ajouter : export const storage = getStorage(app);
 */
 
+// Image officielle "Grand Tour of Switzerland" (myswitzerland.com), utilisée
+// comme bannière du module et comme photo par défaut tant qu'un spot n'a pas
+// encore la vôtre.
+const IMAGE_GRAND_TOUR_BANNIERE = "https://media.myswitzerland.com/image/fetch/c_lfill,g_auto,w_1600,h_900/f_auto,q_80,fl_keep_iptc/https://www.myswitzerland.com/-/media/dam/experiences/adventure%20rides/grand%20tour%20of%20switzerland/photo%20spots/meta%20page%20image/29628_32001800.jpeg";
+const IMAGE_GRAND_TOUR_VIGNETTE = "https://media.myswitzerland.com/image/fetch/c_lfill,g_auto,w_500,h_400/f_auto,q_80,fl_keep_iptc/https://www.myswitzerland.com/-/media/dam/experiences/adventure%20rides/grand%20tour%20of%20switzerland/photo%20spots/meta%20page%20image/29628_32001800.jpeg";
+
 const SPOTS_OFFICIELS_SEED = [
   { id: "1", nom: "Bernina Glaciers", commune: "Pontresina", canton: "GR", categorie: "glacier", adresse: "Pontresina", lienInspo: "https://www.myswitzerland.com/en-ch/experiences/photo-spot-bernina-glaciers/", origine: "base", statut: "a_faire" },
   { id: "2", nom: "Genève", commune: "Genève", canton: "GE", categorie: "ville", adresse: "Genève", lienInspo: "https://www.myswitzerland.com/en-ch/experiences/photo-spot-geneva/", origine: "base", statut: "a_faire" },
@@ -312,11 +318,14 @@ function MarkVisitedModal({ spot, onClose, onSave, monNom, onExpandPhoto }) {
               </label>
             </div>
           ) : (
-            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '160px', border: '2px dashed #D9CDB8', borderRadius: '16px', cursor: 'pointer', color: '#8A7B68', fontSize: '13px', fontWeight: '600' }}>
-              <IconCamera size={26} color="#B5A793" />
-              {uploading ? 'Envoi de la photo...' : 'Ajouter votre photo'}
-              <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} disabled={uploading} />
-            </label>
+            <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', height: '160px' }}>
+              <img src={IMAGE_GRAND_TOUR_VIGNETTE} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
+              <label style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', color: '#FFFFFF', fontSize: '13px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                <IconCamera size={26} />
+                {uploading ? 'Envoi de la photo...' : 'Ajouter votre photo'}
+                <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} disabled={uploading} />
+              </label>
+            </div>
           )}
         </div>
 
@@ -356,6 +365,7 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [spotEnVisite, setSpotEnVisite] = useState(null);
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [recherche, setRecherche] = useState('');
 
   const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
@@ -395,8 +405,9 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
   const filtres = useMemo(() => spots.filter((s) =>
     (!filtreCanton || s.canton === filtreCanton) &&
     (!filtreCategorie || s.categorie === filtreCategorie) &&
-    (!filtreStatut || s.statut === filtreStatut)
-  ), [spots, filtreCanton, filtreCategorie, filtreStatut]);
+    (!filtreStatut || s.statut === filtreStatut) &&
+    (!recherche || (s.nom || '').toLowerCase().includes(recherche.toLowerCase()) || (s.commune || '').toLowerCase().includes(recherche.toLowerCase()))
+  ), [spots, filtreCanton, filtreCategorie, filtreStatut, recherche]);
 
   const nbFaits = spots.filter((s) => s.statut === 'fait').length;
 
@@ -440,6 +451,23 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
       </div>
 
       <div style={{ maxWidth: '500px', margin: '0 auto', padding: '16px 15px 0 15px' }}>
+        <div style={{ position: 'relative', height: '130px', borderRadius: '18px', overflow: 'hidden', marginBottom: '16px' }}>
+          <img src={IMAGE_GRAND_TOUR_BANNIERE} alt="Grand Tour of Switzerland" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(43,36,32,0.15) 0%, rgba(43,36,32,0.75) 100%)' }} />
+          <div style={{ position: 'absolute', left: '16px', bottom: '12px' }}>
+            <div style={{ color: '#FFFFFF', fontSize: '20px', fontWeight: '800', fontFamily: "'Playfair Display', Georgia, serif", lineHeight: '1.1' }}>Grand Tour de Suisse</div>
+            <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '11.5px', fontWeight: '600', marginTop: '2px' }}>Les 87 spots officiels, un par un</div>
+          </div>
+        </div>
+
+        <input
+          type="text"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Rechercher un spot ou une commune..."
+          style={{ width: '100%', padding: '12px 16px', borderRadius: '14px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontSize: '14px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: '12px' }}
+        />
+
         {erreurChargement ? (
           <div style={{ padding: '30px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '18px', border: '1px solid #F0C9C9' }}>
             <p style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: '800', color: '#B3453A' }}>Erreur de chargement</p>
@@ -493,8 +521,11 @@ export const SpotsPhoto = ({ utilisateur, onClose }) => {
                             </button>
                           </>
                         ) : (
-                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <IconCamera size={22} color="#D9CDB8" />
+                          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                            <img src={IMAGE_GRAND_TOUR_VIGNETTE} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} />
+                            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(247,241,232,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <IconCamera size={20} color="#FFFFFF" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))' }} />
+                            </div>
                           </div>
                         )}
                         {fait && (
