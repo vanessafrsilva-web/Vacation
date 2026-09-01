@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import {
   IconArrowLeft, IconPlus, IconTrash, IconToolsKitchen2, IconUsers, IconX,
   IconSearch, IconStar, IconAlertTriangle, IconShare, IconTrophy, IconHeart,
-  IconCamera, IconCheck, IconMapPin, IconPencil
+  IconCamera, IconCheck, IconMapPin, IconPencil, IconMaximize
 } from '@tabler/icons-react';
 
 // Types de cuisine proposés (pour se souvenir "c'était quel genre ?" au partage)
@@ -162,10 +162,37 @@ function LigneEtoiles({ label, valeur, onChange }) {
   );
 }
 
+// Visionneuse plein écran, réutilisable — tap sur une photo (fiche ou
+// vignette d'upload) pour la voir en entier, jamais coupée. Fermeture au
+// tap en dehors ou sur la croix.
+function PhotoLightbox({ url, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,16,13,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: '20px' }}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Fermer"
+        style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top))', right: '16px', border: 'none', backgroundColor: 'rgba(255,255,255,0.15)', color: '#FFF', width: '38px', height: '38px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <IconX size={20} />
+      </button>
+      <img
+        src={url}
+        alt="Photo agrandie"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
+      />
+    </div>
+  );
+}
+
 export function MesRestos({ utilisateur, monNom, onClose }) {
   const [restos, setRestos] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [recherche, setRecherche] = useState('');
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const [nom, setNom] = useState('');
   const [codePays, setCodePays] = useState('');
@@ -795,7 +822,20 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                 <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Photo (optionnel)</p>
                 {photoUrl ? (
                   <div style={{ position: 'relative', marginBottom: '16px', borderRadius: '12px', overflow: 'hidden' }}>
-                    <img src={photoUrl} alt="Photo du plat" style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }} />
+                    <img
+                      src={photoUrl}
+                      alt="Photo du plat"
+                      onClick={() => setLightboxUrl(photoUrl)}
+                      style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', backgroundColor: '#F1E8D8', display: 'block', cursor: 'zoom-in' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLightboxUrl(photoUrl)}
+                      aria-label="Agrandir la photo"
+                      style={{ position: 'absolute', top: '8px', right: '46px', border: 'none', backgroundColor: 'rgba(43,36,32,0.6)', color: '#FFF', width: '28px', height: '28px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <IconMaximize size={14} />
+                    </button>
                     <button type="button" onClick={() => setPhotoUrl('')} style={{ position: 'absolute', top: '8px', right: '8px', border: 'none', backgroundColor: 'rgba(43,36,32,0.6)', color: '#FFF', width: '28px', height: '28px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <IconX size={14} />
                     </button>
@@ -863,7 +903,21 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                         .map((r) => (
                         <div key={r.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: r.moyenne === 10 ? '1.5px solid #E8A0B0' : '1px solid #E8DFCF', padding: '14px 16px', overflow: 'hidden' }}>
                           {r.photoUrl && (
-                            <img src={r.photoUrl} alt={r.nom} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '12px', marginBottom: '12px' }} />
+                            <div style={{ position: 'relative', marginBottom: '12px', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#F1E8D8' }}>
+                              <img
+                                src={r.photoUrl}
+                                alt={r.nom}
+                                onClick={() => setLightboxUrl(r.photoUrl)}
+                                style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block', cursor: 'zoom-in' }}
+                              />
+                              <button
+                                onClick={() => setLightboxUrl(r.photoUrl)}
+                                aria-label="Agrandir la photo"
+                                style={{ position: 'absolute', top: '8px', right: '8px', border: 'none', backgroundColor: 'rgba(255,255,255,0.92)', color: '#2B2420', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <IconMaximize size={15} />
+                              </button>
+                            </div>
                           )}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1072,6 +1126,8 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
           </div>
         )}
       </div>
+
+      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 }
