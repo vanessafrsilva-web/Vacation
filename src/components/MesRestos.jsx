@@ -486,7 +486,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   // Les entrées sans pays détecté (ancien resto, géolocalisation ratée...)
   // atterrissent dans "Non classé" plutôt que de disparaître.
   const groupes = {};
-  restosFiltres.forEach((r) => {
+  restosRegions.forEach((r) => {
     const continent = r.continent || 'Non classé';
     const pays = r.pays || 'Non classé';
     if (!groupes[continent]) groupes[continent] = {};
@@ -503,6 +503,8 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   const [vueMode, setVueMode] = useState('regions'); // 'regions' | 'classement' | 'envies' | 'carte'
   const [filtreContinent, setFiltreContinent] = useState('');
   const [filtreCuisineEnvie, setFiltreCuisineEnvie] = useState('');
+  const [filtreCategorieRegions, setFiltreCategorieRegions] = useState('');
+  const restosRegions = restosFiltres.filter((r) => !filtreCategorieRegions || r.categorie === filtreCategorieRegions);
   const continentsDisponibles = [...new Set(restosFiltres.map((r) => r.continent).filter(Boolean))].sort();
 
   const classement = [...restosFiltres]
@@ -874,7 +876,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
           </form>
         )}
 
-        {!showForm && vueMode === 'regions' && restosFiltres.length === 0 && (
+        {!showForm && vueMode === 'regions' && restosRegions.length === 0 && (
           <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF' }}>
             <IconToolsKitchen2 size={28} color="#B5A793" style={{ marginBottom: '10px' }} />
             <p style={{ color: '#8A7B68', fontSize: '13.5px', margin: 0 }}>
@@ -885,6 +887,30 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
 
         {!showForm && vueMode === 'regions' && restosFiltres.length > 0 && (
           <div>
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '18px', paddingBottom: '2px' }}>
+              <button
+                onClick={() => setFiltreCategorieRegions('')}
+                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#FBF3E3' : '#FFFFFF', color: !filtreCategorieRegions ? '#B8863C' : '#64748B' }}
+              >
+                Tout
+              </button>
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setFiltreCategorieRegions(filtreCategorieRegions === c.id ? '' : c.id)}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#FBF3E3' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#B8863C' : '#64748B' }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            {restosRegions.length === 0 && (
+              <div style={{ padding: '30px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF' }}>
+                <p style={{ color: '#8A7B68', fontSize: '13.5px', margin: 0 }}>Aucun resto dans cette catégorie.</p>
+              </div>
+            )}
+
             {continentsTries.map((continent) => (
               <div key={continent} style={{ marginBottom: '22px' }}>
                 <p style={{ margin: '0 0 10px 2px', fontSize: '13px', fontWeight: '800', color: '#B8863C', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
