@@ -826,7 +826,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                       src={photoUrl}
                       alt="Photo du plat"
                       onClick={() => setLightboxUrl(photoUrl)}
-                      style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', backgroundColor: '#F1E8D8', display: 'block', cursor: 'zoom-in' }}
+                      style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
                     />
                     <button
                       type="button"
@@ -908,7 +908,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                                 src={r.photoUrl}
                                 alt={r.nom}
                                 onClick={() => setLightboxUrl(r.photoUrl)}
-                                style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', display: 'block', cursor: 'zoom-in' }}
+                                style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
                               />
                               <button
                                 onClick={() => setLightboxUrl(r.photoUrl)}
