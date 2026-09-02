@@ -94,8 +94,7 @@ const trouverPays = (code) => PAYS.find((p) => p.code === code);
 // Catégorie du lieu (famille) — distincte du type de cuisine
 const CATEGORIES = [
   { id: 'restaurant', label: '🍽️ Restaurant' },
-  { id: 'brunch', label: '🥞 Brunch' },
-  { id: 'coffee', label: '☕ Coffee Shop' }
+  { id: 'brunch', label: '🥞 Brunch' }
 ];
 const trouverCategorie = (id) => CATEGORIES.find((c) => c.id === id);
 
@@ -892,7 +891,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '18px', paddingBottom: '2px' }}>
               <button
                 onClick={() => setFiltreCategorieRegions('')}
-                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#B8863C' : '#FFFFFF', color: !filtreCategorieRegions ? '#FFFFFF' : '#64748B' }}
+                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#B8863C' : '#FFFFFF', color: !filtreCategorieRegions ? '#FFFFFF' : '#64748B', WebkitTapHighlightColor: 'transparent', outline: 'none' }}
               >
                 Tout
               </button>
@@ -900,7 +899,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                 <button
                   key={c.id}
                   onClick={() => setFiltreCategorieRegions(filtreCategorieRegions === c.id ? '' : c.id)}
-                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#B8863C' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#FFFFFF' : '#64748B' }}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#B8863C' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#FFFFFF' : '#64748B', WebkitTapHighlightColor: 'transparent', outline: 'none' }}
                 >
                   {c.label}
                 </button>
@@ -1022,7 +1021,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
               <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '10px', paddingBottom: '2px' }}>
                 <button
                   onClick={() => setFiltreContinent('')}
-                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreContinent ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreContinent ? '#B8863C' : '#FFFFFF', color: !filtreContinent ? '#FFFFFF' : '#64748B' }}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreContinent ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreContinent ? '#B8863C' : '#FFFFFF', color: !filtreContinent ? '#FFFFFF' : '#64748B', WebkitTapHighlightColor: 'transparent', outline: 'none' }}
                 >
                   Tout le monde
                 </button>
@@ -1030,7 +1029,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                   <button
                     key={c}
                     onClick={() => setFiltreContinent(filtreContinent === c ? '' : c)}
-                    style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: filtreContinent === c ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreContinent === c ? '#B8863C' : '#FFFFFF', color: filtreContinent === c ? '#FFFFFF' : '#64748B' }}
+                    style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: filtreContinent === c ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreContinent === c ? '#B8863C' : '#FFFFFF', color: filtreContinent === c ? '#FFFFFF' : '#64748B', WebkitTapHighlightColor: 'transparent', outline: 'none' }}
                   >
                     {c}
                   </button>
@@ -1041,7 +1040,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '14px', paddingBottom: '2px' }}>
               <button
                 onClick={() => setFiltreCategorieRegions('')}
-                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#B8863C' : '#FFFFFF', color: !filtreCategorieRegions ? '#FFFFFF' : '#64748B' }}
+                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#B8863C' : '#FFFFFF', color: !filtreCategorieRegions ? '#FFFFFF' : '#64748B', WebkitTapHighlightColor: 'transparent', outline: 'none' }}
               >
                 Tout
               </button>
@@ -1049,7 +1048,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                 <button
                   key={c.id}
                   onClick={() => setFiltreCategorieRegions(filtreCategorieRegions === c.id ? '' : c.id)}
-                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#B8863C' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#FFFFFF' : '#64748B' }}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#B8863C' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#FFFFFF' : '#64748B', WebkitTapHighlightColor: 'transparent', outline: 'none' }}
                 >
                   {c.label}
                 </button>
