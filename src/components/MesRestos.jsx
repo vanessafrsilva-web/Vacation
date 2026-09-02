@@ -891,7 +891,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '18px', paddingBottom: '2px' }}>
               <button
                 onClick={() => setFiltreCategorieRegions('')}
-                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#FBF3E3' : '#FFFFFF', color: !filtreCategorieRegions ? '#B8863C' : '#64748B' }}
+                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#B8863C' : '#FFFFFF', color: !filtreCategorieRegions ? '#FFFFFF' : '#64748B' }}
               >
                 Tout
               </button>
@@ -899,7 +899,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                 <button
                   key={c.id}
                   onClick={() => setFiltreCategorieRegions(filtreCategorieRegions === c.id ? '' : c.id)}
-                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#FBF3E3' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#B8863C' : '#64748B' }}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#B8863C' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#FFFFFF' : '#64748B' }}
                 >
                   {c.label}
                 </button>
