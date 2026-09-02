@@ -482,6 +482,9 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
     return texte.includes(recherche.toLowerCase());
   });
 
+  const [filtreCategorieRegions, setFiltreCategorieRegions] = useState('');
+  const restosRegions = restosFiltres.filter((r) => !filtreCategorieRegions || r.categorie === filtreCategorieRegions);
+
   // Regroupement Continent → Pays, chaque groupe trié par note décroissante.
   // Les entrées sans pays détecté (ancien resto, géolocalisation ratée...)
   // atterrissent dans "Non classé" plutôt que de disparaître.
@@ -503,8 +506,6 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
   const [vueMode, setVueMode] = useState('regions'); // 'regions' | 'classement' | 'envies' | 'carte'
   const [filtreContinent, setFiltreContinent] = useState('');
   const [filtreCuisineEnvie, setFiltreCuisineEnvie] = useState('');
-  const [filtreCategorieRegions, setFiltreCategorieRegions] = useState('');
-  const restosRegions = restosFiltres.filter((r) => !filtreCategorieRegions || r.categorie === filtreCategorieRegions);
   const continentsDisponibles = [...new Set(restosFiltres.map((r) => r.continent).filter(Boolean))].sort();
 
   const classement = [...restosFiltres]
