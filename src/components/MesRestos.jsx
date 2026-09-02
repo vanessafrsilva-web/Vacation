@@ -510,6 +510,7 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
 
   const classement = [...restosFiltres]
     .filter((r) => !filtreContinent || r.continent === filtreContinent)
+    .filter((r) => !filtreCategorieRegions || r.categorie === filtreCategorieRegions)
     .sort((a, b) => (b.moyenne || 0) - (a.moyenne || 0));
 
   const MEDAILLES = ['🥇', '🥈', '🥉'];
@@ -1018,10 +1019,10 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
         {!showForm && vueMode === 'classement' && (
           <div>
             {continentsDisponibles.length > 0 && (
-              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '14px', paddingBottom: '2px' }}>
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '10px', paddingBottom: '2px' }}>
                 <button
                   onClick={() => setFiltreContinent('')}
-                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreContinent ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: !filtreContinent ? '#FBF3E3' : '#FFFFFF', color: !filtreContinent ? '#B8863C' : '#64748B' }}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreContinent ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreContinent ? '#B8863C' : '#FFFFFF', color: !filtreContinent ? '#FFFFFF' : '#64748B' }}
                 >
                   Tout le monde
                 </button>
@@ -1029,13 +1030,31 @@ export function MesRestos({ utilisateur, monNom, onClose }) {
                   <button
                     key={c}
                     onClick={() => setFiltreContinent(filtreContinent === c ? '' : c)}
-                    style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: filtreContinent === c ? '2px solid #B8863C' : '1px solid #E8DFCF', backgroundColor: filtreContinent === c ? '#FBF3E3' : '#FFFFFF', color: filtreContinent === c ? '#B8863C' : '#64748B' }}
+                    style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: filtreContinent === c ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreContinent === c ? '#B8863C' : '#FFFFFF', color: filtreContinent === c ? '#FFFFFF' : '#64748B' }}
                   >
                     {c}
                   </button>
                 ))}
               </div>
             )}
+
+            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginBottom: '14px', paddingBottom: '2px' }}>
+              <button
+                onClick={() => setFiltreCategorieRegions('')}
+                style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', border: !filtreCategorieRegions ? 'none' : '1px solid #E8DFCF', backgroundColor: !filtreCategorieRegions ? '#B8863C' : '#FFFFFF', color: !filtreCategorieRegions ? '#FFFFFF' : '#64748B' }}
+              >
+                Tout
+              </button>
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setFiltreCategorieRegions(filtreCategorieRegions === c.id ? '' : c.id)}
+                  style={{ flexShrink: 0, padding: '7px 13px', borderRadius: '999px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: filtreCategorieRegions === c.id ? 'none' : '1px solid #E8DFCF', backgroundColor: filtreCategorieRegions === c.id ? '#B8863C' : '#FFFFFF', color: filtreCategorieRegions === c.id ? '#FFFFFF' : '#64748B' }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
 
             {classement.length === 0 ? (
               <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF' }}>
