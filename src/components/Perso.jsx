@@ -8,7 +8,7 @@ import {
   IconArrowLeft, IconPlus, IconX, IconTrash, IconPencil, IconTool, IconChecklist,
   IconCalendar, IconGauge, IconCamera, IconAlertTriangle, IconCircle, IconCircleCheckFilled,
   IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight,
-  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight
+  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize
 } from '@tabler/icons-react';
 
 const MODULES_PERSO = [
@@ -67,6 +67,31 @@ const TYPES_ATTENTIONS = [
 function formatDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// Visionneuse plein écran, réutilisable — tap sur une photo pour la voir
+// en entier, jamais coupée. Fermeture au tap en dehors ou sur la croix.
+function PhotoLightbox({ url, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(20,16,13,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: '20px' }}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Fermer"
+        style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top))', right: '16px', border: 'none', backgroundColor: 'rgba(255,255,255,0.15)', color: '#FFF', width: '38px', height: '38px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <IconX size={20} />
+      </button>
+      <img
+        src={url}
+        alt="Photo agrandie"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
+      />
+    </div>
+  );
 }
 
 export function Perso({ utilisateur, onClose }) {
@@ -135,6 +160,7 @@ function EntretienVan({ utilisateur }) {
   const [entrees, setEntrees] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [idEnEdition, setIdEnEdition] = useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const [type, setType] = useState('vidange');
   const [fournisseur, setFournisseur] = useState('');
@@ -400,10 +426,24 @@ function EntretienVan({ utilisateur }) {
           </div>
 
           {photoPreview ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', padding: '9px', backgroundColor: '#F7F1E8', borderRadius: '12px' }}>
-              <img src={photoPreview} alt="Facture" style={{ width: '46px', height: '46px', objectFit: 'cover', borderRadius: '9px' }} />
-              <span style={{ flex: 1, fontSize: '12px', color: '#8A7B68' }}>Photo attachée</span>
-              <button type="button" onClick={() => { setPhotoPreview(null); setPhotoStoragePath(null); }} style={{ border: 'none', background: 'none', color: '#B3453A', cursor: 'pointer' }}><IconX size={16} /></button>
+            <div style={{ position: 'relative', marginBottom: '14px', borderRadius: '12px', overflow: 'hidden' }}>
+              <img
+                src={photoPreview}
+                alt="Facture"
+                onClick={() => setLightboxUrl(photoPreview)}
+                style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
+              />
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(photoPreview)}
+                aria-label="Agrandir la photo"
+                style={{ position: 'absolute', top: '8px', right: '46px', border: 'none', backgroundColor: 'rgba(43,36,32,0.6)', color: '#FFF', width: '28px', height: '28px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <IconMaximize size={14} />
+              </button>
+              <button type="button" onClick={() => { setPhotoPreview(null); setPhotoStoragePath(null); }} style={{ position: 'absolute', top: '8px', right: '8px', border: 'none', backgroundColor: 'rgba(43,36,32,0.6)', color: '#FFF', width: '28px', height: '28px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IconX size={14} />
+              </button>
             </div>
           ) : (
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '11px', marginBottom: '14px', borderRadius: '12px', border: '1.5px dashed #D9CDB8', color: '#8A7B68', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
@@ -454,13 +494,29 @@ function EntretienVan({ utilisateur }) {
                   </div>
                 </div>
                 {e.photoUrl && (
-                  <img src={e.photoUrl} alt="Facture" style={{ marginTop: '10px', width: '60px', height: '60px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #E8DFCF' }} />
+                  <div style={{ position: 'relative', marginTop: '10px', display: 'inline-block' }}>
+                    <img
+                      src={e.photoUrl}
+                      alt="Facture"
+                      onClick={() => setLightboxUrl(e.photoUrl)}
+                      style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #E8DFCF', cursor: 'zoom-in', display: 'block' }}
+                    />
+                    <button
+                      onClick={() => setLightboxUrl(e.photoUrl)}
+                      aria-label="Agrandir la photo"
+                      style={{ position: 'absolute', bottom: '-5px', right: '-5px', border: '1.5px solid #FFFFFF', backgroundColor: '#2B2420', color: '#FFF', width: '22px', height: '22px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <IconMaximize size={11} />
+                    </button>
+                  </div>
                 )}
               </div>
             );
           })}
         </div>
       )}
+
+      {lightboxUrl && <PhotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </div>
   );
 }
