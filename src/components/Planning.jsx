@@ -7,7 +7,8 @@ import {
   IconPlus, IconMapPin, IconClock, IconCoffee, IconBed, IconMusic,
   IconCalendarEvent, IconX, IconTrash, IconPlaneDeparture, IconCar,
   IconInfoCircle, IconCalendarDue, IconPencil, IconPaperclip, IconFileText,
-  IconExternalLink, IconDownload, IconChevronDown, IconGasStation, IconWalk
+  IconExternalLink, IconDownload, IconChevronDown, IconGasStation, IconWalk,
+  IconHelpCircle, IconEyeOff
 } from '@tabler/icons-react';
 import { Carte } from './Carte';
 import { Meteo } from './Meteo';
@@ -85,6 +86,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   const formRef = useRef(null);
   const [essaiSoumission, setEssaiSoumission] = useState(false); // devient vrai après une 1ère tentative d'envoi, pour afficher les champs manquants
   const [joursReplies, setJoursReplies] = useState({}); // { '2026-08-01': true } = replié
+  const [masquerOptions, setMasquerOptions] = useState(false); // true = n'affiche que le programme confirmé
 
   // Jeton de session Google Places (New) — regroupe une recherche + sa
   // sélection finale pour que ce soit facturé/compté comme une seule session
@@ -233,6 +235,8 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   // le voyage — les mêmes numéros que ceux affichés sur la carte.
   const numeroEtape = {};
   activites.forEach((act, i) => { numeroEtape[act.id] = i + 1; });
+
+  const nbOptions = activites.filter((a) => a.option).length;
 
   const toggleJour = (jour) => {
     setJoursReplies((prev) => ({ ...prev, [jour]: !prev[jour] }));
@@ -537,6 +541,18 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
     await updateDoc(doc(db, `voyages/${voyage.id}/activites`, act.id), { note: nouvelleValeur });
   };
 
+  // Bascule une activité entre "confirmée" et "option" — pour un plan B
+  // (rando, visite...) qu'on garde sous le coude sans l'ajouter au programme
+  // ferme, ni le supprimer purement et simplement.
+  const toggleOption = async (act) => {
+    await updateDoc(doc(db, `voyages/${voyage.id}/activites`, act.id), { option: !act.option });
+    enregistrerHistorique(
+      voyage.id,
+      act.option ? `a confirmé « ${act.titre} » dans le Planning` : `a mis « ${act.titre} » en option dans le Planning`,
+      currentUserNom
+    );
+  };
+
   return (
     <div style={{ padding: '20px 10px', fontFamily: "system-ui, sans-serif" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -752,25 +768,38 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
         </div>
       )}
 
-      {Object.keys(groups).length > 1 && !showForm && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
-          <button
-            type="button"
-            onClick={() => {
-              const tousReplies = Object.keys(groups).every((j) => joursReplies[j]);
-              const nouvelEtat = {};
-              Object.keys(groups).forEach((j) => { nouvelEtat[j] = !tousReplies; });
-              setJoursReplies(nouvelEtat);
-            }}
-            style={{ border: 'none', background: 'none', color: '#B8863C', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 0' }}
-          >
-            {Object.keys(groups).every((j) => joursReplies[j]) ? 'Tout déplier' : 'Tout replier'}
-          </button>
+      {(nbOptions > 0 || Object.keys(groups).length > 1) && !showForm && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+          {nbOptions > 0 ? (
+            <button
+              type="button"
+              onClick={() => setMasquerOptions((v) => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', border: 'none', background: 'none', color: '#8A7B68', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 0' }}
+            >
+              <IconEyeOff size={14} />
+              {masquerOptions ? `Afficher les options (${nbOptions})` : `Masquer les options (${nbOptions})`}
+            </button>
+          ) : <span />}
+          {Object.keys(groups).length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                const tousReplies = Object.keys(groups).every((j) => joursReplies[j]);
+                const nouvelEtat = {};
+                Object.keys(groups).forEach((j) => { nouvelEtat[j] = !tousReplies; });
+                setJoursReplies(nouvelEtat);
+              }}
+              style={{ border: 'none', background: 'none', color: '#B8863C', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', padding: '4px 0' }}
+            >
+              {Object.keys(groups).every((j) => joursReplies[j]) ? 'Tout déplier' : 'Tout replier'}
+            </button>
+          )}
         </div>
       )}
 
       {Object.keys(groups).sort().map((day) => {
         const replie = !!joursReplies[day];
+        const itemsJour = masquerOptions ? groups[day].filter((a) => !a.option) : groups[day];
         return (
         <div key={day} style={{ marginBottom: '30px' }}>
           <h3
@@ -779,28 +808,41 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
           >
             <IconCalendarEvent size={16} />
             {new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#B5A793', backgroundColor: '#F1E8D8', padding: '1px 8px', borderRadius: '999px' }}>{groups[day].length}</span>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#B5A793', backgroundColor: '#F1E8D8', padding: '1px 8px', borderRadius: '999px' }}>{itemsJour.length}</span>
             <IconChevronDown size={16} style={{ marginLeft: 'auto', transform: replie ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', color: '#B5A793' }} />
           </h3>
           {!replie && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            {groups[day].map((act, index) => {
+            {itemsJour.length === 0 && (
+              <p style={{ fontSize: '12.5px', color: '#B5A793', fontStyle: 'italic', margin: '0 0 10px 4px' }}>Uniquement des options ce jour-là — masquées pour l'instant.</p>
+            )}
+            {itemsJour.map((act, index) => {
               const cat = CATEGORIES.find(c => c.id === act.categorie);
               return (
-                <div key={act.id} style={{ display: 'flex', gap: '16px', position: 'relative' }}>
-                  {index < groups[day].length - 1 && (
+                <div key={act.id} style={{ display: 'flex', gap: '16px', position: 'relative', opacity: act.option ? 0.72 : 1 }}>
+                  {index < itemsJour.length - 1 && (
                     <div style={{ position: 'absolute', left: '26px', top: '50px', bottom: '-15px', width: '2px', backgroundColor: '#E8DFCF', zIndex: 0 }}></div>
                   )}
                   <div style={{ backgroundColor: cat?.bg, color: cat?.color, padding: '12px', borderRadius: '14px', zIndex: 1, height: 'fit-content' }}>{cat?.icon}</div>
-                  <div style={{ flex: 1, backgroundColor: '#FFF', padding: '16px', borderRadius: '16px', marginBottom: '16px', border: '1px solid #E8DFCF', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                  <div style={{ flex: 1, backgroundColor: '#FFF', padding: '16px', borderRadius: '16px', marginBottom: '16px', border: act.option ? '1.5px dashed #C9BBA0' : '1px solid #E8DFCF', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, flexWrap: 'wrap' }}>
                         <span style={{ flexShrink: 0, width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#F1E8D8', color: '#8A7B68', fontSize: '11px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {numeroEtape[act.id]}
                         </span>
                         <span style={{ fontWeight: '700', color: '#2B2420', fontSize: '15px' }}>{act.titre}</span>
+                        {act.option && (
+                          <span style={{ fontSize: '10px', fontWeight: '800', color: '#8A7B68', backgroundColor: '#F1E8D8', padding: '2px 7px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Option</span>
+                        )}
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => toggleOption(act)}
+                          title={act.option ? 'Confirmer dans le programme' : 'Mettre en option (au cas où)'}
+                          style={{ border: 'none', background: 'none', color: act.option ? '#B8863C' : '#B5A793', cursor: 'pointer', padding: '4px' }}
+                        >
+                          <IconHelpCircle size={16} />
+                        </button>
                         <button onClick={() => commencerEdition(act)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconPencil size={15} /></button>
                         <button onClick={() => handleDeleteActivite(act)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '4px' }}><IconTrash size={16} /></button>
                       </div>
