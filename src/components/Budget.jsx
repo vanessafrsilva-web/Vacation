@@ -6,7 +6,7 @@ import { enregistrerHistorique } from '../historique';
 import {
   IconTrash, IconReceipt2, IconGasStation, IconBasket, IconCoffee, IconTicket,
   IconBuildingStore, IconPencil, IconCheck, IconX,
-  IconArrowRight, IconWallet, IconTrophy, IconCamera, IconPhoto
+  IconArrowRight, IconWallet, IconCamera, IconPhoto
 } from '@tabler/icons-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -251,19 +251,6 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
     return Object.values(acc);
   }, [depenses]);
 
-  // Total payé par personne (utile pour le classement "qui a le plus avancé")
-  // — on exclut ce qui a été payé par la cagnotte, ce n'est pas une personne.
-  const totalParPersonne = useMemo(() => {
-    const acc = {};
-    voyageurs.forEach((v) => { acc[v.id] = 0; });
-    vraiesDepenses.forEach((dep) => {
-      if (dep.payePar === 'cagnotte') return;
-      acc[dep.payePar] = (acc[dep.payePar] || 0) + dep.montant;
-    });
-    return acc;
-  }, [depenses, voyageurs]);
-  const maxPayePersonne = Math.max(1, ...voyageurs.map((v) => totalParPersonne[v.id] || 0));
-
   // Balance nette par personne : positif = on lui doit de l'argent,
   // négatif = elle doit de l'argent au groupe.
   // Inclut aussi les remboursements (qui rééquilibrent naturellement).
@@ -504,26 +491,6 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
             <p style={{ margin: 0, fontSize: '12.5px', color: theme.subText }}>Chacun met une somme de côté au début du voyage (ex: 200.- sur Revolut), et les dépenses payées depuis cette cagnotte ne comptent plus dans les dettes individuelles.</p>
           )}
         </div>
-
-        {/* QUI A LE PLUS AVANCÉ D'ARGENT */}
-        {voyageurs.length > 1 && (
-          <div style={{ marginBottom: '20px' }}>
-            <p style={{ margin: '0 0 10px 0', color: theme.subText, fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <IconTrophy size={14} /> QUI A LE PLUS AVANCÉ
-            </p>
-            {voyageurs.map((v) => (
-              <div key={v.id} style={{ marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '3px' }}>
-                  <span style={{ color: theme.text, fontWeight: '600' }}>{v.nom}</span>
-                  <span style={{ color: theme.subText }}>{(totalParPersonne[v.id] || 0).toFixed(2)} CHF</span>
-                </div>
-                <div style={{ height: '6px', backgroundColor: theme.border, borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', backgroundColor: couleurVoyageur(v.id), width: `${((totalParPersonne[v.id] || 0) / maxPayePersonne) * 100}%` }}></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* BALANCES + SUGGESTIONS DE REMBOURSEMENT */}
         {voyageurs.length > 1 ? (
