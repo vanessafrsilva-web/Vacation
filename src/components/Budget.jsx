@@ -491,22 +491,60 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
     pdf.setTextColor(0, 0, 0);
 
     // --- Cagnotte et remboursements, pour référence ---
+    // Reconstruits à partir des champs structurés (payePar / bénéficiaire)
+    // plutôt que du titre stocké tel quel : celui-ci contient un caractère
+    // "→" que la police standard de jsPDF affiche très mal (espacement
+    // complètement décalé). On utilise donc une flèche ASCII "->" ici.
     const remboursements = depenses.filter((d) => d.estRemboursement);
-    if (apportsCagnotte.length > 0 || remboursements.length > 0) {
-      if (y > 260) nouvellePage();
+    const elementsExtra = [
+      ...apportsCagnotte.map((d) => ({
+        type: 'Apport cagnotte', date: d.timestamp, montant: d.montant,
+        detail: nomVoyageur(d.payePar)
+      })),
+      ...remboursements.map((d) => ({
+        type: 'Remboursement', date: d.timestamp, montant: d.montant,
+        detail: `${nomVoyageur(d.payePar)} -> ${nomVoyageur((d.beneficiaires || [])[0])}`
+      }))
+    ].sort((a, b) => b.date - a.date);
+
+    if (elementsExtra.length > 0) {
+      if (y > 255) nouvellePage();
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(12);
+      pdf.setFontSize(13);
       pdf.setTextColor(...BRUN);
       pdf.text('Cagnotte & remboursements', margeGauche, y);
-      y += 8;
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9.5);
-      pdf.setTextColor(...GRIS);
-      [...apportsCagnotte, ...remboursements].sort((a, b) => b.timestamp - a.timestamp).forEach((d) => {
-        if (y > 280) nouvellePage();
-        const dateTexte = d.timestamp ? new Date(d.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
-        pdf.text(`${dateTexte} · ${d.titre} · ${d.montant.toFixed(2)} CHF`, margeGauche, y);
-        y += 6;
+      y += 10;
+
+      const couleurExtra = [94, 138, 135]; // même teinte que l'icône Cagnotte/Remboursement dans l'app
+
+      elementsExtra.forEach((ex) => {
+        const hauteur = 12;
+        if (y + hauteur > 280) nouvellePage();
+
+        pdf.setFillColor(...CREME);
+        pdf.roundedRect(margeGauche, y, largeurUtile, hauteur, 2, 2, 'F');
+        pdf.setFillColor(...couleurExtra);
+        pdf.rect(margeGauche, y, 2.2, hauteur, 'F');
+
+        const yTexte = y + 7.5;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.setTextColor(...BRUN);
+        pdf.text(ex.type, margeGauche + 6, yTexte);
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(...GRIS);
+        const dateTexte = ex.date ? new Date(ex.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
+        pdf.text(`${dateTexte} · ${ex.detail}`, margeGauche + 6, yTexte + 5);
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.setTextColor(...couleurExtra);
+        pdf.text(`${ex.montant.toFixed(2)} CHF`, pageW - margeDroite - 4, yTexte, { align: 'right' });
+
+        pdf.setTextColor(0, 0, 0);
+        y += hauteur + 4;
       });
     }
 
