@@ -1,12 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import jsPDF from 'jspdf';
 import { Convertisseur } from './Convertisseur';
 import { enregistrerHistorique } from '../historique';
 import {
   IconTrash, IconReceipt2, IconGasStation, IconBasket, IconCoffee, IconTicket,
   IconBuildingStore, IconPencil, IconCheck, IconX,
-  IconArrowRight, IconWallet, IconCamera, IconPhoto
+  IconArrowRight, IconWallet, IconCamera, IconPhoto, IconDownload
 } from '@tabler/icons-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -38,6 +39,7 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
   const [showForm, setShowForm] = useState(false);
   const [showReglement, setShowReglement] = useState(false);
   const [editionBudget, setEditionBudget] = useState(false);
+  const formRef = useRef(null);
 
   const [titre, setTitre] = useState('');
   const [recuPreview, setRecuPreview] = useState(null); // dataURL compressée, ou null
@@ -47,6 +49,7 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
   const [categorie, setCategorie] = useState('Courses');
   const [payePar, setPayePar] = useState(voyageurs[0]?.id || 'moi');
   const [beneficiaires, setBeneficiaires] = useState(voyageurs.map((v) => v.id));
+  const [idEnEdition, setIdEnEdition] = useState(null); // null = ajout, sinon id de la dépense modifiée
 
   const [regleQui, setRegleQui] = useState(voyageurs[0]?.id || 'moi');
   const [regleAQui, setRegleAQui] = useState(voyageurs[1]?.id || voyageurs[0]?.id || 'moi');
@@ -122,28 +125,57 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
     }
   };
 
-  // --- AJOUT D'UNE DÉPENSE ---
+  const resetFormDepense = () => {
+    setTitre(''); setMontant(''); setRecuPreview(null);
+    setBeneficiaires(voyageurs.map((v) => v.id));
+    setPayePar(voyageurs[0]?.id || 'moi');
+    setCategorie('Courses');
+    setIdEnEdition(null);
+    setShowForm(false);
+  };
+
+  // Ouvre le formulaire pré-rempli avec les valeurs d'une dépense existante,
+  // pour la corriger (montant faux, mauvaise catégorie, oubli d'un
+  // bénéficiaire...) sans devoir la supprimer et la recréer.
+  const commencerEditionDepense = (dep) => {
+    setTitre(dep.titre);
+    setMontant(String(dep.montant));
+    setCategorie(dep.categorie);
+    setPayePar(dep.payePar);
+    setBeneficiaires(dep.beneficiaires && dep.beneficiaires.length > 0 ? dep.beneficiaires : voyageurs.map((v) => v.id));
+    setRecuPreview(dep.recu || null);
+    setIdEnEdition(dep.id);
+    setShowForm(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  // --- AJOUT / MODIFICATION D'UNE DÉPENSE ---
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!titre || !montant || beneficiaires.length === 0) return;
 
+    const payload = {
+      titre,
+      montant: parseFloat(montant),
+      payePar,
+      beneficiaires,
+      categorie,
+      estRemboursement: false,
+      recu: recuPreview || null,
+      voyageId: idVoyage
+    };
+
     try {
-      await addDoc(collection(db, 'budget'), {
-        titre,
-        montant: parseFloat(montant),
-        payePar,
-        beneficiaires,
-        categorie,
-        estRemboursement: false,
-        recu: recuPreview || null,
-        voyageId: idVoyage,
-        timestamp: Date.now()
-      });
-      enregistrerHistorique(idVoyage, `a ajouté la dépense « ${titre} » (${parseFloat(montant).toFixed(2)} CHF)`, currentUserNom);
-      setTitre(''); setMontant(''); setShowForm(false); setRecuPreview(null);
-      setBeneficiaires(voyageurs.map((v) => v.id));
+      if (idEnEdition) {
+        await updateDoc(doc(db, 'budget', idEnEdition), payload);
+        enregistrerHistorique(idVoyage, `a modifié la dépense « ${titre} » (${parseFloat(montant).toFixed(2)} CHF)`, currentUserNom);
+      } else {
+        await addDoc(collection(db, 'budget'), { ...payload, timestamp: Date.now() });
+        enregistrerHistorique(idVoyage, `a ajouté la dépense « ${titre} » (${parseFloat(montant).toFixed(2)} CHF)`, currentUserNom);
+      }
+      resetFormDepense();
     } catch (error) {
-      console.error("Erreur d'ajout :", error);
+      console.error("Erreur d'enregistrement :", error);
     }
   };
 
@@ -341,6 +373,161 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
     if (Math.abs(balPlusGros) < 0.5) return { type: 'ok' };
     return { type: 'multi', personne: plusGros, montant: Math.abs(balPlusGros), positif: balPlusGros > 0 };
   }, [balances, voyageurs]);
+
+  // --- EXPORT PDF, DÉTAIL COMPLET GROUPÉ PAR CATÉGORIE ---
+  const COULEUR_CATEGORIE_PDF = {
+    Essence: [245, 158, 11], Courses: [184, 134, 60], 'Verres/Resto': [154, 107, 135],
+    Activités: [110, 138, 166], Autre: [142, 142, 147], Remboursement: [94, 138, 135], Cagnotte: [94, 138, 135]
+  };
+
+  const exporterPDF = () => {
+    const pdf = new jsPDF();
+    const pageW = pdf.internal.pageSize.getWidth();
+    const margeGauche = 16;
+    const margeDroite = 16;
+    const largeurUtile = pageW - margeGauche - margeDroite;
+    let y = 0;
+
+    const OR = [184, 134, 60];
+    const BRUN = [43, 36, 32];
+    const GRIS = [138, 123, 104];
+    const CREME = [247, 241, 232];
+
+    const nouvellePage = () => { pdf.addPage(); y = 20; };
+
+    // --- Bandeau d'en-tête ---
+    pdf.setFillColor(...BRUN);
+    pdf.rect(0, 0, pageW, 34, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('times', 'bold');
+    pdf.setFontSize(21);
+    pdf.text(`Dépenses — ${voyage?.nom || 'Voyage'}`, margeGauche, 20);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.setTextColor(230, 210, 180);
+    pdf.text(`Total : ${totalVoyage.toFixed(2)} CHF`, margeGauche, 28);
+
+    pdf.setTextColor(0, 0, 0);
+    y = 46;
+
+    // Regroupement des vraies dépenses par catégorie
+    const parCategorie = {};
+    vraiesDepenses.forEach((d) => {
+      if (!parCategorie[d.categorie]) parCategorie[d.categorie] = [];
+      parCategorie[d.categorie].push(d);
+    });
+    const categoriesTriees = Object.keys(parCategorie).sort(
+      (a, b) => parCategorie[b].reduce((s, d) => s + d.montant, 0) - parCategorie[a].reduce((s, d) => s + d.montant, 0)
+    );
+
+    if (categoriesTriees.length === 0) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(12);
+      pdf.setTextColor(...GRIS);
+      pdf.text("Aucune dépense enregistrée pour l'instant.", margeGauche, y);
+    }
+
+    categoriesTriees.forEach((cat) => {
+      const items = [...parCategorie[cat]].sort((a, b) => b.timestamp - a.timestamp);
+      const sousTotal = items.reduce((s, d) => s + d.montant, 0);
+      const couleurCat = COULEUR_CATEGORIE_PDF[cat] || GRIS;
+
+      if (y > 265) nouvellePage();
+
+      // Bande de titre de catégorie, avec sous-total
+      pdf.setFillColor(...couleurCat);
+      pdf.roundedRect(margeGauche, y, largeurUtile, 9, 2, 2, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.text(cat, margeGauche + 4, y + 6.2);
+      pdf.text(`${sousTotal.toFixed(2)} CHF`, pageW - margeDroite - 4, y + 6.2, { align: 'right' });
+      y += 15;
+
+      items.forEach((dep) => {
+        const hauteur = 12;
+        if (y + hauteur > 280) nouvellePage();
+
+        pdf.setFillColor(...CREME);
+        pdf.roundedRect(margeGauche, y, largeurUtile, hauteur, 2, 2, 'F');
+        pdf.setFillColor(...couleurCat);
+        pdf.rect(margeGauche, y, 2.2, hauteur, 'F');
+
+        const yTexte = y + 7.5;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10.5);
+        pdf.setTextColor(...BRUN);
+        pdf.text(dep.titre, margeGauche + 6, yTexte);
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(...GRIS);
+        const dateTexte = dep.timestamp ? new Date(dep.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
+        const nomPayeur = dep.payePar === 'cagnotte' ? 'Cagnotte' : nomVoyageur(dep.payePar);
+        pdf.text(`${dateTexte} · payé par ${nomPayeur}${dep.recu ? ' · reçu joint' : ''}`, margeGauche + 6, yTexte + 5);
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.setTextColor(...OR);
+        pdf.text(`${dep.montant.toFixed(2)} CHF`, pageW - margeDroite - 4, yTexte, { align: 'right' });
+
+        pdf.setTextColor(0, 0, 0);
+        y += hauteur + 4;
+      });
+
+      y += 4;
+    });
+
+    // --- Total général ---
+    if (y > 265) nouvellePage();
+    pdf.setFillColor(...BRUN);
+    pdf.roundedRect(margeGauche, y, largeurUtile, 12, 2, 2, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.text('TOTAL GÉNÉRAL', margeGauche + 5, y + 8);
+    pdf.text(`${totalVoyage.toFixed(2)} CHF`, pageW - margeDroite - 4, y + 8, { align: 'right' });
+    y += 20;
+    pdf.setTextColor(0, 0, 0);
+
+    // --- Cagnotte et remboursements, pour référence ---
+    const remboursements = depenses.filter((d) => d.estRemboursement);
+    if (apportsCagnotte.length > 0 || remboursements.length > 0) {
+      if (y > 260) nouvellePage();
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor(...BRUN);
+      pdf.text('Cagnotte & remboursements', margeGauche, y);
+      y += 8;
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(...GRIS);
+      [...apportsCagnotte, ...remboursements].sort((a, b) => b.timestamp - a.timestamp).forEach((d) => {
+        if (y > 280) nouvellePage();
+        const dateTexte = d.timestamp ? new Date(d.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
+        pdf.text(`${dateTexte} · ${d.titre} · ${d.montant.toFixed(2)} CHF`, margeGauche, y);
+        y += 6;
+      });
+    }
+
+    // --- Pied de page ---
+    const nbPages = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= nbPages; i++) {
+      pdf.setPage(i);
+      const pageH = pdf.internal.pageSize.getHeight();
+      pdf.setDrawColor(...OR);
+      pdf.setLineWidth(0.3);
+      pdf.line(margeGauche, pageH - 14, pageW - margeDroite, pageH - 14);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(...GRIS);
+      pdf.text('Les Nomades by Vanessa', margeGauche, pageH - 9);
+      pdf.text(`Page ${i} / ${nbPages}`, pageW - margeDroite, pageH - 9, { align: 'right' });
+    }
+
+    const nomFichier = `Depenses_${(voyage?.nom || 'voyage').replace(/[^a-zA-Z0-9]+/g, '_')}.pdf`;
+    pdf.save(nomFichier);
+  };
 
   const inputStyle = { width: '100%', padding: '14px', marginBottom: '12px', borderRadius: '12px', border: `1px solid ${theme.border}`, backgroundColor: theme.inputBg, color: theme.text, fontSize: '16px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
 
@@ -589,8 +776,8 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
         </div>
       )}
 
-      {/* FORMULAIRE NOUVELLE DÉPENSE */}
-      <div style={{ marginBottom: '30px' }}>
+      {/* FORMULAIRE NOUVELLE DÉPENSE / MODIFICATION */}
+      <div style={{ marginBottom: '30px' }} ref={formRef}>
         {showForm ? (
           <form onSubmit={handleAdd} style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '20px', border: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -661,8 +848,10 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
             )}
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button type="button" onClick={() => { setShowForm(false); setRecuPreview(null); }} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: theme.inputBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>Annuler</button>
-              <button type="submit" style={{ flex: 2, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: '#B8863C', color: '#000', fontWeight: '900', cursor: 'pointer', fontSize: '16px', fontFamily: 'inherit' }}>Sauvegarder</button>
+              <button type="button" onClick={resetFormDepense} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: theme.inputBg, color: theme.text, cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit' }}>Annuler</button>
+              <button type="submit" style={{ flex: 2, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: '#B8863C', color: '#000', fontWeight: '900', cursor: 'pointer', fontSize: '16px', fontFamily: 'inherit' }}>
+                {idEnEdition ? 'Enregistrer les modifications' : 'Sauvegarder'}
+              </button>
             </div>
           </form>
         ) : (
@@ -674,7 +863,14 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
 
       {/* HISTORIQUE */}
       <div>
-        <h3 style={{ color: theme.text, fontSize: '20px', marginBottom: '15px', fontWeight: '700' }}>Transactions</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h3 style={{ color: theme.text, fontSize: '20px', margin: 0, fontWeight: '700' }}>Transactions</h3>
+          {depenses.length > 0 && (
+            <button onClick={exporterPDF} title="Exporter le détail en PDF" style={{ backgroundColor: theme.card, color: theme.text, border: `1px solid ${theme.border}`, padding: '9px 12px', borderRadius: '14px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontFamily: 'inherit' }}>
+              <IconDownload size={16} /> Exporter
+            </button>
+          )}
+        </div>
         {depenses.length === 0 && <p style={{ color: theme.subText, fontSize: '15px', textAlign: 'center', padding: '20px' }}>Votre portefeuille est vide.</p>}
 
         {depenses.map((dep) => (
@@ -703,7 +899,7 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
               {dep.recu && (
                 <img
                   src={dep.recu}
@@ -713,6 +909,11 @@ export function Budget({ voyage, voyageId, currentUserNom }) {
                 />
               )}
               <span style={{ color: dep.estRemboursement ? '#5E8A87' : theme.text, fontWeight: '800', fontSize: '16px' }}>{dep.montant.toFixed(2)}</span>
+              {!dep.estRemboursement && !dep.estApportCagnotte && (
+                <button onClick={() => commencerEditionDepense(dep)} style={{ background: 'transparent', border: 'none', padding: '5px', cursor: 'pointer', display: 'flex' }}>
+                  <IconPencil size={18} color={theme.subText} />
+                </button>
+              )}
               <button onClick={() => handleDelete(dep.id)} style={{ background: 'transparent', border: 'none', padding: '5px', cursor: 'pointer', display: 'flex' }}>
                 <IconTrash size={20} color="#B3453A" style={{ opacity: 0.7 }} />
               </button>
