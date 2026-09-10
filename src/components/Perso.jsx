@@ -8,14 +8,15 @@ import {
   IconArrowLeft, IconPlus, IconX, IconTrash, IconPencil, IconTool, IconChecklist,
   IconCalendar, IconGauge, IconCamera, IconAlertTriangle, IconCircle, IconCircleCheckFilled,
   IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight,
-  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize
+  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize, IconPaw
 } from '@tabler/icons-react';
 
 const MODULES_PERSO = [
   { id: 'van', titre: 'Ma Voiture', description: 'Entretien, rappels et petites tâches liées à la voiture', icon: IconTool, couleur: '#B8863C', fond: '#F1E8D8' },
   { id: 'taches', titre: 'Mes Tâches', description: 'Ta to-do list du quotidien', icon: IconChecklist, couleur: '#16C784', fond: '#E6F9F1' },
   { id: 'recettes', titre: 'Recettes', description: 'Carnet de recettes et planning des repas', icon: IconChefHat, couleur: '#B97490', fond: '#F8EFF2' },
-  { id: 'dates', titre: 'Nos Dates', description: 'Journal des attentions et planification de vos rendez-vous', icon: IconHeart, couleur: '#C2707D', fond: '#F8EFF2' }
+  { id: 'dates', titre: 'Nos Dates', description: 'Journal des attentions et planification de vos rendez-vous', icon: IconHeart, couleur: '#C2707D', fond: '#F8EFF2' },
+  { id: 'garde', titre: 'Garde des Chats', description: 'Calendrier pour organiser qui passe pendant tes vacances', icon: IconPaw, couleur: '#6E8AA6', fond: '#EEF2F0' }
 ];
 
 const TYPES_ENTRETIEN = [
@@ -95,7 +96,7 @@ function PhotoLightbox({ url, onClose }) {
 }
 
 export function Perso({ utilisateur, onClose }) {
-  const [ongletActif, setOngletActif] = useState(null); // null = menu | 'van' | 'taches' | 'recettes' | 'dates'
+  const [ongletActif, setOngletActif] = useState(null); // null = menu | 'van' | 'taches' | 'recettes' | 'dates' | 'garde'
 
   const moduleActif = MODULES_PERSO.find((m) => m.id === ongletActif);
 
@@ -148,6 +149,7 @@ export function Perso({ utilisateur, onClose }) {
         {ongletActif === 'taches' && <TachesPerso utilisateur={utilisateur} />}
         {ongletActif === 'recettes' && <RecettesPerso utilisateur={utilisateur} />}
         {ongletActif === 'dates' && <DatesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'garde' && <GardeChats utilisateur={utilisateur} />}
       </div>
     </div>
   );
@@ -1498,6 +1500,262 @@ function PlanificateurDates({ utilisateur }) {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// ONGLET "GARDE DES CHATS" — calendrier mensuel, une personne par jour
+// =====================================================================
+const PALETTE_PERSONNES = ['#6E8AA6', '#B97490', '#B8863C', '#5E8A87', '#9A6B87', '#F59E0B', '#B3453A'];
+const JOURS_COURTS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+function moisDebut(offset) {
+  const auj = new Date();
+  return new Date(auj.getFullYear(), auj.getMonth() + offset, 1);
+}
+
+// Grille du mois avec des cases vides en tête pour caler le 1er du mois
+// sur la bonne colonne (semaine commençant un lundi).
+function joursDuMois(date) {
+  const annee = date.getFullYear();
+  const mois = date.getMonth();
+  const premier = new Date(annee, mois, 1);
+  const dernier = new Date(annee, mois + 1, 0);
+  const decalage = premier.getDay() === 0 ? 6 : premier.getDay() - 1;
+  const jours = [];
+  for (let i = 0; i < decalage; i++) jours.push(null);
+  for (let j = 1; j <= dernier.getDate(); j++) jours.push(new Date(annee, mois, j));
+  return jours;
+}
+
+function GardeChats({ utilisateur }) {
+  const [moisOffset, setMoisOffset] = useState(0);
+  const [personnes, setPersonnes] = useState([]);
+  const [nouvellePersonne, setNouvellePersonne] = useState('');
+  const [gestionPersonnes, setGestionPersonnes] = useState(false);
+  const [garde, setGarde] = useState({}); // dateISO -> { id, personne }
+  const [jourOuvert, setJourOuvert] = useState(null); // dateISO ou null
+
+  const moisRef = useMemo(() => moisDebut(moisOffset), [moisOffset]);
+  const jours = useMemo(() => joursDuMois(moisRef), [moisRef]);
+
+  // Liste des personnes, partagée entre tous les mois (ex: frère, Sophia,
+  // cousin) — modifiable directement depuis le calendrier.
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const unsub = onSnapshot(doc(db, 'garde_chats_personnes', utilisateur.uid), (snap) => {
+      setPersonnes(snap.exists() ? (snap.data().liste || []) : []);
+    });
+    return () => unsub();
+  }, [utilisateur?.uid]);
+
+  // Assignations du mois affiché uniquement
+  useEffect(() => {
+    if (!utilisateur?.uid) return;
+    const debutISO = toISODate(new Date(moisRef.getFullYear(), moisRef.getMonth(), 1));
+    const finISO = toISODate(new Date(moisRef.getFullYear(), moisRef.getMonth() + 1, 0));
+    const q = query(collection(db, 'garde_chats'), where('uid', '==', utilisateur.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const map = {};
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.date >= debutISO && data.date <= finISO) map[data.date] = { id: d.id, ...data };
+      });
+      setGarde(map);
+    });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [utilisateur?.uid, moisRef.getFullYear(), moisRef.getMonth()]);
+
+  const couleurPersonne = (nom) => {
+    const index = personnes.indexOf(nom);
+    return PALETTE_PERSONNES[index >= 0 ? index % PALETTE_PERSONNES.length : 0];
+  };
+
+  const ajouterPersonne = async (e) => {
+    e.preventDefault();
+    const nom = nouvellePersonne.trim();
+    if (!nom || personnes.includes(nom)) return;
+    try {
+      await setDoc(doc(db, 'garde_chats_personnes', utilisateur.uid), { liste: [...personnes, nom] }, { merge: true });
+      setNouvellePersonne('');
+    } catch (error) {
+      console.error("Erreur d'ajout :", error);
+    }
+  };
+
+  const supprimerPersonne = async (nom) => {
+    try {
+      await setDoc(doc(db, 'garde_chats_personnes', utilisateur.uid), { liste: personnes.filter((p) => p !== nom) }, { merge: true });
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
+  const assignerJour = async (personne) => {
+    if (!jourOuvert) return;
+    try {
+      await setDoc(doc(db, 'garde_chats', `${utilisateur.uid}_${jourOuvert}`), {
+        uid: utilisateur.uid, date: jourOuvert, personne, createdAt: serverTimestamp()
+      }, { merge: true });
+      setJourOuvert(null);
+    } catch (error) {
+      console.error("Erreur d'enregistrement :", error);
+    }
+  };
+
+  const viderJour = async () => {
+    const existant = garde[jourOuvert];
+    if (!existant) { setJourOuvert(null); return; }
+    try {
+      await deleteDoc(doc(db, 'garde_chats', existant.id));
+      setJourOuvert(null);
+    } catch (error) {
+      console.error('Erreur de suppression :', error);
+    }
+  };
+
+  const nomMois = moisRef.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <button onClick={() => setMoisOffset((v) => v - 1)} style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#2B2420' }}>
+          <IconChevronLeft size={16} />
+        </button>
+        <p style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#2B2420', textTransform: 'capitalize' }}>{nomMois}</p>
+        <button onClick={() => setMoisOffset((v) => v + 1)} style={{ border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#2B2420' }}>
+          <IconChevronRight size={16} />
+        </button>
+      </div>
+
+      {/* Légende des personnes + gestion de la liste */}
+      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '16px', padding: '12px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (personnes.length > 0 || gestionPersonnes) ? '10px' : 0 }}>
+          <p style={{ margin: 0, fontSize: '12px', fontWeight: '800', color: '#8A7B68' }}>🐾 QUI GARDE</p>
+          <button type="button" onClick={() => setGestionPersonnes((v) => !v)} style={{ border: 'none', background: 'none', color: '#6E8AA6', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>
+            {gestionPersonnes ? 'Fermer' : 'Gérer la liste'}
+          </button>
+        </div>
+
+        {!gestionPersonnes && personnes.length > 0 && (
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {personnes.map((p) => (
+              <span key={p} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: '700', color: couleurPersonne(p) }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: couleurPersonne(p) }} /> {p}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {!gestionPersonnes && personnes.length === 0 && (
+          <p style={{ margin: 0, fontSize: '12.5px', color: '#B5A793' }}>Ajoute les personnes qui peuvent passer (frère, cousin, une amie...) via "Gérer la liste".</p>
+        )}
+
+        {gestionPersonnes && (
+          <div>
+            {personnes.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                {personnes.map((p) => (
+                  <div key={p} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', backgroundColor: '#F7F1E8', borderRadius: '10px' }}>
+                    <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: couleurPersonne(p), flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: '13px', fontWeight: '600', color: '#2B2420' }}>{p}</span>
+                    <button onClick={() => supprimerPersonne(p)} style={{ border: 'none', background: 'none', color: '#B5A793', cursor: 'pointer', padding: '3px' }}><IconTrash size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form onSubmit={ajouterPersonne} style={{ display: 'flex', gap: '7px' }}>
+              <input type="text" placeholder="ex: Mon frère, Sophia..." value={nouvellePersonne} onChange={(e) => setNouvellePersonne(e.target.value)} style={{ flex: 1, padding: '9px 11px', borderRadius: '10px', border: '1px solid #E8DFCF', fontSize: '13.5px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              <button type="submit" style={{ width: '38px', border: 'none', backgroundColor: '#6E8AA6', color: '#FFF', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <IconPlus size={17} />
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* Grille du calendrier */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px', marginBottom: '6px' }}>
+        {JOURS_COURTS.map((j, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '800', color: '#B5A793' }}>{j}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px' }}>
+        {jours.map((d, i) => {
+          if (!d) return <div key={`vide-${i}`} />;
+          const dateISO = toISODate(d);
+          const entree = garde[dateISO];
+          const aujourdHui = toISODate(new Date()) === dateISO;
+          return (
+            <button
+              key={dateISO}
+              onClick={() => setJourOuvert(dateISO)}
+              style={{
+                aspectRatio: '1', borderRadius: '11px', cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '2px', fontFamily: 'inherit',
+                border: aujourdHui ? '1.5px solid #6E8AA6' : '1px solid #E8DFCF',
+                backgroundColor: entree ? `${couleurPersonne(entree.personne)}22` : '#FFFFFF'
+              }}
+            >
+              <span style={{ fontSize: '12px', fontWeight: aujourdHui ? '800' : '600', color: aujourdHui ? '#6E8AA6' : '#2B2420' }}>{d.getDate()}</span>
+              {entree && (
+                <span style={{ fontSize: '8.5px', fontWeight: '800', color: couleurPersonne(entree.personne), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                  {entree.personne}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Fiche du jour sélectionné */}
+      {jourOuvert && (
+        <div
+          onClick={() => setJourOuvert(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(43, 36, 32, 0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 2000 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: '#FFFFFF', borderRadius: '20px 20px 0 0', padding: '20px', width: '100%', maxWidth: '460px', maxHeight: '75vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#2B2420', textTransform: 'capitalize' }}>
+                {new Date(jourOuvert).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </h3>
+              <button onClick={() => setJourOuvert(null)} style={{ border: 'none', backgroundColor: '#F1E8D8', color: '#8A7B68', width: '30px', height: '30px', borderRadius: '10px', cursor: 'pointer' }}><IconX size={16} /></button>
+            </div>
+
+            {personnes.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                {personnes.map((p) => (
+                  <div
+                    key={p}
+                    onClick={() => assignerJour(p)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '9px', padding: '11px 13px', borderRadius: '12px', cursor: 'pointer',
+                      backgroundColor: garde[jourOuvert]?.personne === p ? `${couleurPersonne(p)}20` : '#F7F1E8',
+                      border: garde[jourOuvert]?.personne === p ? `1.5px solid ${couleurPersonne(p)}` : '1.5px solid transparent'
+                    }}
+                  >
+                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: couleurPersonne(p), flexShrink: 0 }} />
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#2B2420' }}>{p}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '12.5px', color: '#B5A793', marginBottom: '12px' }}>Ajoute d'abord une personne via "Gérer la liste" ci-dessus.</p>
+            )}
+
+            {garde[jourOuvert] && (
+              <button onClick={viderJour} style={{ width: '100%', padding: '11px', borderRadius: '11px', border: '1px solid #F3D2D0', backgroundColor: '#FEF2F2', color: '#B3453A', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                Retirer l'assignation
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
