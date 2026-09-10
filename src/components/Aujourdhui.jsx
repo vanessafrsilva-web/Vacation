@@ -126,22 +126,31 @@ export function Aujourdhui({ voyage, setActiveTab }) {
                 const estProchaine = prochaine?.id === a.id;
                 const estPassee = a.heure && a.heure < heureActuelle && !estProchaine;
                 const lienMaps = a.categorie !== 'vol' ? lienGoogleMaps(a) : null;
+                // Une activité en option (plan B non confirmé) garde le même
+                // traitement visuel discret que dans le Planning — bordure
+                // en pointillés, opacité réduite, badge "Option" — pour ne
+                // jamais la confondre avec le programme confirmé du jour.
                 return (
                   <div
                     key={a.id}
                     style={{
                       backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '14px 16px',
-                      border: estProchaine ? '2px solid #B8863C' : '1px solid #E8DFCF',
-                      opacity: estPassee ? 0.5 : 1,
+                      border: a.option ? '1.5px dashed #C9BBA0' : (estProchaine ? '2px solid #B8863C' : '1px solid #E8DFCF'),
+                      opacity: a.option ? 0.72 : (estPassee ? 0.5 : 1),
                       display: 'flex', alignItems: 'center', gap: '12px'
                     }}
                   >
                     <div style={{ fontSize: '22px', flexShrink: 0 }}>{CATEGORIE_ICONE[a.categorie] || '📍'}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {estProchaine && (
+                      {estProchaine && !a.option && (
                         <p style={{ margin: '0 0 2px 0', fontSize: '10.5px', fontWeight: '800', color: '#B8863C', textTransform: 'uppercase', letterSpacing: '0.3px' }}>À venir</p>
                       )}
-                      <p style={{ margin: 0, fontSize: '14.5px', fontWeight: '700', color: '#2B2420' }}>{a.titre}</p>
+                      <p style={{ margin: 0, fontSize: '14.5px', fontWeight: '700', color: '#2B2420', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {a.titre}
+                        {a.option && (
+                          <span style={{ fontSize: '9.5px', fontWeight: '800', color: '#8A7B68', backgroundColor: '#F1E8D8', padding: '2px 6px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Option</span>
+                        )}
+                      </p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '3px' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', color: '#8A7B68' }}>
                           <IconClock size={12} /> {a.heure || '--:--'}
