@@ -22,6 +22,19 @@ const CATEGORIE_ICONE = {
   vol: '✈️', hotel: '🛏️', taxi: '🚕', transport: '🚗', resto: '☕', visite: '📍'
 };
 
+// Construit un lien Google Maps direct pour une activité : les coordonnées
+// GPS si elles ont été enregistrées (plus précis), sinon le texte de
+// l'adresse tel quel.
+const lienGoogleMaps = (act) => {
+  if (typeof act.lat === 'number' && typeof act.lon === 'number') {
+    return `https://www.google.com/maps/search/?api=1&query=${act.lat},${act.lon}`;
+  }
+  if (act.lieu) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(act.lieu)}`;
+  }
+  return null;
+};
+
 export function Aujourdhui({ voyage, setActiveTab }) {
   const [activites, setActivites] = useState([]);
   const [meteoJour, setMeteoJour] = useState(null);
@@ -112,6 +125,7 @@ export function Aujourdhui({ voyage, setActiveTab }) {
               {activites.map((a) => {
                 const estProchaine = prochaine?.id === a.id;
                 const estPassee = a.heure && a.heure < heureActuelle && !estProchaine;
+                const lienMaps = a.categorie !== 'vol' ? lienGoogleMaps(a) : null;
                 return (
                   <div
                     key={a.id}
@@ -134,7 +148,14 @@ export function Aujourdhui({ voyage, setActiveTab }) {
                         </span>
                         {(a.lieu || a.depart) && (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', color: '#8A7B68', minWidth: 0 }}>
-                            <IconMapPin size={12} /> {a.categorie === 'vol' ? `${a.depart || '?'} → ${a.arrivee || '?'}` : a.lieu}
+                            <IconMapPin size={12} />
+                            {a.categorie === 'vol'
+                              ? `${a.depart || '?'} → ${a.arrivee || '?'}`
+                              : (lienMaps ? (
+                                  <a href={lienMaps} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#6E8AA6', fontWeight: '700', textDecoration: 'underline' }}>
+                                    {a.lieu}
+                                  </a>
+                                ) : a.lieu)}
                           </span>
                         )}
                       </div>
