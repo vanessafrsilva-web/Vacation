@@ -66,6 +66,19 @@ const CATEGORIE_BUDGET = {
   transport: 'Essence', resto: 'Verres/Resto', visite: 'Activités', technique: 'Essence', randonnee: 'Activités'
 };
 
+// Construit un lien Google Maps direct pour une activité : les coordonnées
+// GPS si elles ont été enregistrées (plus précis), sinon le texte de
+// l'adresse tel quel.
+const lienGoogleMaps = (act) => {
+  if (typeof act.lat === 'number' && typeof act.lon === 'number') {
+    return `https://www.google.com/maps/search/?api=1&query=${act.lat},${act.lon}`;
+  }
+  if (act.lieu) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(act.lieu)}`;
+  }
+  return null;
+};
+
 export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
   const [activites, setActivites] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -818,6 +831,7 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
             )}
             {itemsJour.map((act, index) => {
               const cat = CATEGORIES.find(c => c.id === act.categorie);
+              const lienMaps = lienGoogleMaps(act);
               return (
                 <div key={act.id} style={{ display: 'flex', gap: '16px', position: 'relative', opacity: act.option ? 0.72 : 1 }}>
                   {index < itemsJour.length - 1 && (
@@ -852,9 +866,17 @@ export const Planning = ({ voyage, currentUserId, currentUserNom }) => {
                       {act.heure}
                       {cat?.departArrivee
                         ? ((act.depart || act.arrivee)
-                          ? ` • ${act.depart || '?'} → ${act.arrivee || '?'}`
-                          : (act.lieu ? ` • ${act.lieu}` : ''))
-                        : (act.lieu ? ` • ${act.lieu}` : '')}
+                          ? <> • {act.depart || '?'} → {act.arrivee || '?'}</>
+                          : (act.lieu ? (
+                              lienMaps ? (
+                                <> • <a href={lienMaps} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#6E8AA6', fontWeight: '700', textDecoration: 'underline' }}>{act.lieu}</a></>
+                              ) : <> • {act.lieu}</>
+                            ) : null))
+                        : (act.lieu ? (
+                            lienMaps ? (
+                              <> • <a href={lienMaps} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#6E8AA6', fontWeight: '700', textDecoration: 'underline' }}>{act.lieu}</a></>
+                            ) : <> • {act.lieu}</>
+                          ) : null)}
                       {act.prix != null && (
                         <span style={{ fontWeight: '700', color: '#B8863C' }}>· {act.prix.toFixed(2)} CHF</span>
                       )}
