@@ -13,7 +13,6 @@ import {
 import { AccordCohabitation } from './AccordCohabitation';
 import { AdminAcces, ADMIN_EMAIL } from './AdminAcces';
 
-
 const MODULES_PERSO = [
   { id: 'van', titre: 'Ma Voiture', description: 'Entretien, rappels et petites tâches liées à la voiture', icon: IconTool, couleur: '#B8863C', fond: '#F1E8D8' },
   { id: 'taches', titre: 'Mes Tâches', description: 'Ta to-do list du quotidien', icon: IconChecklist, couleur: '#16C784', fond: '#E6F9F1' },
@@ -100,9 +99,37 @@ function PhotoLightbox({ url, onClose }) {
 }
 
 export function Perso({ utilisateur, onClose }) {
-  const [ongletActif, setOngletActif] = useState(null); // null = menu | 'van' | 'taches' | 'recettes' | 'dates' | 'garde' | 'accord'
+  const [ongletActif, setOngletActif] = useState(null); // null = menu | id d'un module | 'admin'
+  const [acces, setAcces] = useState(undefined); // undefined = chargement
 
-  const moduleActif = MODULES_PERSO.find((m) => m.id === ongletActif);
+  const email = (utilisateur?.email || '').toLowerCase();
+  const estAdmin = email !== '' && email === ADMIN_EMAIL.toLowerCase();
+
+  // Lit la liste des modules autorisés pour cet utilisateur
+  useEffect(() => {
+    if (!email) { setAcces([]); return; }
+    const unsub = onSnapshot(
+      doc(db, 'acces', email),
+      (snap) => setAcces(snap.exists() ? (snap.data().modules || []) : []),
+      () => setAcces([])
+    );
+    return () => unsub();
+  }, [email]);
+
+  const modulesVisibles = estAdmin
+    ? MODULES_PERSO
+    : MODULES_PERSO.filter((m) => (acces || []).includes(m.id));
+
+  const peutVoir = (id) => modulesVisibles.some((m) => m.id === id);
+
+  const carteAdmin = {
+    id: 'admin', titre: 'Accès', description: 'Gérer qui peut voir quoi',
+    icon: IconNote, couleur: '#2B2420', fond: '#F1E8D8'
+  };
+
+  const moduleActif = ongletActif === 'admin' ? carteAdmin : modulesVisibles.find((m) => m.id === ongletActif);
+
+  const cartesMenu = estAdmin ? [...modulesVisibles, carteAdmin] : modulesVisibles;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -123,9 +150,18 @@ export function Perso({ utilisateur, onClose }) {
       </div>
 
       <div style={{ maxWidth: '500px', margin: '0 auto', padding: '18px 15px 40px 15px' }}>
-        {ongletActif === null && (
+        {acces === undefined && !estAdmin && (
+          <p style={{ textAlign: 'center', color: '#B5A793', fontSize: '13.5px', padding: '40px 0' }}>Chargement…</p>
+        )}
+
+        {ongletActif === null && (acces !== undefined || estAdmin) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {MODULES_PERSO.map((m) => {
+            {cartesMenu.length === 0 && (
+              <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '20px', border: '1px dashed #E8DFCF', color: '#B5A793', fontSize: '13.5px' }}>
+                Tu n'as accès à aucun module pour l'instant.
+              </div>
+            )}
+            {cartesMenu.map((m) => {
               const Icon = m.icon;
               return (
                 <div
@@ -149,12 +185,14 @@ export function Perso({ utilisateur, onClose }) {
             })}
           </div>
         )}
-        {ongletActif === 'van' && <EntretienVan utilisateur={utilisateur} />}
-        {ongletActif === 'taches' && <TachesPerso utilisateur={utilisateur} />}
-        {ongletActif === 'recettes' && <RecettesPerso utilisateur={utilisateur} />}
-        {ongletActif === 'dates' && <DatesPerso utilisateur={utilisateur} />}
-        {ongletActif === 'garde' && <GardeChats utilisateur={utilisateur} />}
-        {ongletActif === 'accord' && <AccordCohabitation utilisateur={utilisateur} />}
+
+        {ongletActif === 'admin' && estAdmin && <AdminAcces modules={MODULES_PERSO} />}
+        {ongletActif === 'van' && peutVoir('van') && <EntretienVan utilisateur={utilisateur} />}
+        {ongletActif === 'taches' && peutVoir('taches') && <TachesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'recettes' && peutVoir('recettes') && <RecettesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'dates' && peutVoir('dates') && <DatesPerso utilisateur={utilisateur} />}
+        {ongletActif === 'garde' && peutVoir('garde') && <GardeChats utilisateur={utilisateur} />}
+        {ongletActif === 'accord' && peutVoir('accord') && <AccordCohabitation utilisateur={utilisateur} />}
       </div>
     </div>
   );
