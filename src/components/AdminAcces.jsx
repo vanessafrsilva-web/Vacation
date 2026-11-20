@@ -1,16 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+import { IconPlus, IconTrash } from '@tabler/icons-react';
 
-// ⚠️ Mets ici l'email avec lequel TU te connectes (en minuscules)
+// ⚠️ Email admin (en minuscules)
 export const ADMIN_EMAIL = 'vanessafrsilva@gmail.com';
 
+// Les 4 cartes de l'écran d'accueil
+export const MODULES_ACCUEIL = [
+  { id: 'voyages', titre: 'Planning Voyages', couleur: '#2B2420', fond: '#F1E8D8' },
+  { id: 'restos', titre: 'Papilles Nomades', couleur: '#B8863C', fond: '#FBF3E3' },
+  { id: 'perso', titre: 'Perso', couleur: '#4A7C59', fond: '#EAF2EC' },
+  { id: 'spots-photo', titre: 'Grand Tour CH', couleur: '#B8863C', fond: '#F1E8D8' }
+];
+
+function Puce({ actif, couleur, fond, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '7px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+        border: actif ? `1.5px solid ${couleur}` : '1.5px solid #E8DFCF',
+        backgroundColor: actif ? fond : '#FFFFFF',
+        color: actif ? couleur : '#B5A793'
+      }}
+    >
+      {actif ? '✓ ' : ''}{children}
+    </button>
+  );
+}
+
+const titreSection = { margin: '0 0 7px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '800' };
 
 export function AdminAcces({ modules }) {
+  // "modules" = les modules à l'intérieur de Perso (envoyés par Perso.jsx)
   const [users, setUsers] = useState([]);
   const [nouvelEmail, setNouvelEmail] = useState('');
-  const [nouveauxModules, setNouveauxModules] = useState(['van', 'accord']);
+  const [nouveauxModules, setNouveauxModules] = useState(['voyages', 'perso', 'van', 'accord']);
   const [erreur, setErreur] = useState('');
 
   useEffect(() => {
@@ -41,7 +68,7 @@ export function AdminAcces({ modules }) {
         updatedAt: serverTimestamp()
       });
       setNouvelEmail('');
-      setNouveauxModules(['van', 'accord']);
+      setNouveauxModules(['voyages', 'perso', 'van', 'accord']);
     } catch (error) {
       console.error("Erreur d'ajout :", error);
       setErreur("Impossible d'ajouter (vérifie les règles Firestore).");
@@ -69,21 +96,6 @@ export function AdminAcces({ modules }) {
 
   const inputStyle = { width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E8DFCF', backgroundColor: '#FFFFFF', color: '#2B2420', fontSize: '15px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
 
-  const Puce = ({ actif, couleur, fond, onClick, children }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '7px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-        border: actif ? `1.5px solid ${couleur}` : '1.5px solid #E8DFCF',
-        backgroundColor: actif ? fond : '#FFFFFF',
-        color: actif ? couleur : '#B5A793'
-      }}
-    >
-      {actif ? '✓ ' : ''}{children}
-    </button>
-  );
-
   return (
     <div>
       <p style={{ margin: '0 0 16px 0', fontSize: '12.5px', color: '#8A7B68', lineHeight: '1.5' }}>
@@ -99,7 +111,17 @@ export function AdminAcces({ modules }) {
           onChange={(e) => setNouvelEmail(e.target.value)}
           style={{ ...inputStyle, marginBottom: '12px' }}
         />
-        <p style={{ margin: '0 0 7px 0', fontSize: '11px', color: '#8A7B68', fontWeight: '700' }}>Peut voir :</p>
+
+        <p style={titreSection}>ÉCRAN D'ACCUEIL</p>
+        <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginBottom: '12px' }}>
+          {MODULES_ACCUEIL.map((m) => (
+            <Puce key={m.id} actif={nouveauxModules.includes(m.id)} couleur={m.couleur} fond={m.fond} onClick={() => toggleNouveau(m.id)}>
+              {m.titre}
+            </Puce>
+          ))}
+        </div>
+
+        <p style={titreSection}>DANS PERSO</p>
         <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginBottom: '14px' }}>
           {modules.map((m) => (
             <Puce key={m.id} actif={nouveauxModules.includes(m.id)} couleur={m.couleur} fond={m.fond} onClick={() => toggleNouveau(m.id)}>
@@ -107,6 +129,7 @@ export function AdminAcces({ modules }) {
             </Puce>
           ))}
         </div>
+
         {erreur && <p style={{ margin: '0 0 10px 0', fontSize: '12.5px', color: '#B3453A', fontWeight: '700' }}>{erreur}</p>}
         <button type="submit" style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', backgroundColor: '#2B2420', color: '#FFF', fontWeight: '800', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
           <IconPlus size={16} /> Ajouter
@@ -129,6 +152,17 @@ export function AdminAcces({ modules }) {
                   <IconTrash size={16} />
                 </button>
               </div>
+
+              <p style={titreSection}>ÉCRAN D'ACCUEIL</p>
+              <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                {MODULES_ACCUEIL.map((m) => (
+                  <Puce key={m.id} actif={(u.modules || []).includes(m.id)} couleur={m.couleur} fond={m.fond} onClick={() => toggleModuleUser(u, m.id)}>
+                    {m.titre}
+                  </Puce>
+                ))}
+              </div>
+
+              <p style={titreSection}>DANS PERSO</p>
               <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
                 {modules.map((m) => (
                   <Puce key={m.id} actif={(u.modules || []).includes(m.id)} couleur={m.couleur} fond={m.fond} onClick={() => toggleModuleUser(u, m.id)}>
