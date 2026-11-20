@@ -28,6 +28,27 @@ export function calcParts(a, b) {
   return { total, p1: (A / total) * 100, p2: (B / total) * 100 };
 }
 
+// --- Colonnes calculées (référencées par leur nom dans le schéma) ---
+export const CALCULS = {
+  histoTotal: (r) => (num(r.a) + num(r.b) > 0 ? `${chf(num(r.a) + num(r.b))} CHF` : ''),
+  histoPartP1: (r) => {
+    const p = calcParts(r.a, r.b);
+    return p ? `${p.p1.toFixed(1)} %` : '';
+  },
+  histoPartP2: (r) => {
+    const p = calcParts(r.a, r.b);
+    return p ? `${p.p2.toFixed(1)} %` : '';
+  },
+  histoLoyerP1: (r) => {
+    const p = calcParts(r.a, r.b);
+    return p ? `${chf((LOYER_NET * p.p1) / 100)} CHF` : '';
+  },
+  histoLoyerP2: (r) => {
+    const p = calcParts(r.a, r.b);
+    return p ? `${chf((LOYER_NET * p.p2) / 100)} CHF` : '';
+  }
+};
+
 // --- Petits constructeurs pour garder le schéma lisible ---
 const info = (texte) => ({ type: 'info', texte });
 const texte = (id, label, placeholder) => ({ id, type: 'texte', label, placeholder });
@@ -62,12 +83,10 @@ export const SECTIONS = [
     titre: 'Notre situation de départ',
     emoji: '🏠',
     intro:
-      'Les prénoms que tu écris ici remplacent « P1 » et « P2 » dans tout le document. P1 = la personne titulaire du bail, déjà dans le logement avec ses 2 chats ; P2 = celle qui emménage.',
+      'P1 = la personne titulaire du bail, déjà dans le logement avec ses 2 chats ; P2 = celle qui emménage. Les prénoms sont définis dans les réglages de l’administratrice.',
     blocs: [
       {
         champs: [
-          texte('prenomP1', 'Prénom P1'),
-          texte('prenomP2', 'Prénom P2'),
           texte('adresse', 'Logement : appartement de 2,5 pièces, adresse'),
           date('dateEmmenagement', 'Date d’emménagement de P2'),
           info('Animaux : 2 chats (propriété de P1).'),
@@ -223,48 +242,11 @@ export const SECTIONS = [
             { id: 'date', label: 'Date', type: 'date' },
             { id: 'a', label: 'Revenu net P1 (A)', type: 'nombre', unite: 'CHF' },
             { id: 'b', label: 'Revenu net P2 (B)', type: 'nombre', unite: 'CHF' },
-            {
-              id: 'total',
-              label: 'Total (A + B)',
-              type: 'calc',
-              calc: (r) => (num(r.a) + num(r.b) > 0 ? `${chf(num(r.a) + num(r.b))} CHF` : '')
-            },
-            {
-              id: 'partP1',
-              label: 'Part P1',
-              type: 'calc',
-              calc: (r) => {
-                const p = calcParts(r.a, r.b);
-                return p ? `${p.p1.toFixed(1)} %` : '';
-              }
-            },
-            {
-              id: 'partP2',
-              label: 'Part P2',
-              type: 'calc',
-              calc: (r) => {
-                const p = calcParts(r.a, r.b);
-                return p ? `${p.p2.toFixed(1)} %` : '';
-              }
-            },
-            {
-              id: 'loyerP1',
-              label: 'Loyer P1 (sans parking)',
-              type: 'calc',
-              calc: (r) => {
-                const p = calcParts(r.a, r.b);
-                return p ? `${chf((LOYER_NET * p.p1) / 100)} CHF` : '';
-              }
-            },
-            {
-              id: 'loyerP2',
-              label: 'Loyer P2 (sans parking)',
-              type: 'calc',
-              calc: (r) => {
-                const p = calcParts(r.a, r.b);
-                return p ? `${chf((LOYER_NET * p.p2) / 100)} CHF` : '';
-              }
-            }
+            { id: 'total', label: 'Total (A + B)', type: 'calc', calc: 'histoTotal' },
+            { id: 'partP1', label: 'Part P1', type: 'calc', calc: 'histoPartP1' },
+            { id: 'partP2', label: 'Part P2', type: 'calc', calc: 'histoPartP2' },
+            { id: 'loyerP1', label: 'Loyer P1 (sans parking)', type: 'calc', calc: 'histoLoyerP1' },
+            { id: 'loyerP2', label: 'Loyer P2 (sans parking)', type: 'calc', calc: 'histoLoyerP2' }
           ])
         ]
       },
@@ -1215,3 +1197,9 @@ export const SECTIONS = [
     ]
   }
 ];
+
+export const NOMS_DEFAUT = { P1: '', P2: '' };
+
+export function modeleParDefaut() {
+  return JSON.parse(JSON.stringify({ noms: NOMS_DEFAUT, sections: SECTIONS }));
+}
