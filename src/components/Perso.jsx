@@ -10,13 +10,15 @@ import {
   IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight,
   IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize, IconPaw
 } from '@tabler/icons-react';
+import { AccordCohabitation } from './AccordCohabitation';
 
 const MODULES_PERSO = [
   { id: 'van', titre: 'Ma Voiture', description: 'Entretien, rappels et petites tâches liées à la voiture', icon: IconTool, couleur: '#B8863C', fond: '#F1E8D8' },
   { id: 'taches', titre: 'Mes Tâches', description: 'Ta to-do list du quotidien', icon: IconChecklist, couleur: '#16C784', fond: '#E6F9F1' },
   { id: 'recettes', titre: 'Recettes', description: 'Carnet de recettes et planning des repas', icon: IconChefHat, couleur: '#B97490', fond: '#F8EFF2' },
   { id: 'dates', titre: 'Nos Dates', description: 'Journal des attentions et planification de vos rendez-vous', icon: IconHeart, couleur: '#C2707D', fond: '#F8EFF2' },
-  { id: 'garde', titre: 'Garde des Chats', description: 'Calendrier pour organiser qui passe pendant tes vacances', icon: IconPaw, couleur: '#6E8AA6', fond: '#EEF2F0' }
+  { id: 'garde', titre: 'Garde des Chats', description: 'Calendrier pour organiser qui passe pendant tes vacances', icon: IconPaw, couleur: '#6E8AA6', fond: '#EEF2F0' },
+  { id: 'accord', titre: 'Notre accord', description: 'Accord de cohabitation : chacune remplit de son côté, puis on compare', icon: IconNote, couleur: '#9A6B87', fond: '#F3ECF1' }
 ];
 
 const TYPES_ENTRETIEN = [
@@ -96,7 +98,7 @@ function PhotoLightbox({ url, onClose }) {
 }
 
 export function Perso({ utilisateur, onClose }) {
-  const [ongletActif, setOngletActif] = useState(null); // null = menu | 'van' | 'taches' | 'recettes' | 'dates' | 'garde'
+  const [ongletActif, setOngletActif] = useState(null); // null = menu | 'van' | 'taches' | 'recettes' | 'dates' | 'garde' | 'accord'
 
   const moduleActif = MODULES_PERSO.find((m) => m.id === ongletActif);
 
@@ -150,6 +152,7 @@ export function Perso({ utilisateur, onClose }) {
         {ongletActif === 'recettes' && <RecettesPerso utilisateur={utilisateur} />}
         {ongletActif === 'dates' && <DatesPerso utilisateur={utilisateur} />}
         {ongletActif === 'garde' && <GardeChats utilisateur={utilisateur} />}
+        {ongletActif === 'accord' && <AccordCohabitation utilisateur={utilisateur} />}
       </div>
     </div>
   );
