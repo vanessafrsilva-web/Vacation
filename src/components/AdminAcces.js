@@ -4,7 +4,8 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, serverTimest
 import { IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 
 // ⚠️ Mets ici l'email avec lequel TU te connectes (en minuscules)
-export const ADMIN_EMAIL = 'TON_EMAIL_ICI';
+export const ADMIN_EMAIL = 'vanessafrsilva@gmail.com';
+
 
 export function AdminAcces({ modules }) {
   const [users, setUsers] = useState([]);
