@@ -11,6 +11,8 @@ import {
   IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize, IconPaw
 } from '@tabler/icons-react';
 import { AccordCohabitation } from './AccordCohabitation';
+import { AdminAcces, ADMIN_EMAIL } from './AdminAcces';
+
 
 const MODULES_PERSO = [
   { id: 'van', titre: 'Ma Voiture', description: 'Entretien, rappels et petites tâches liées à la voiture', icon: IconTool, couleur: '#B8863C', fond: '#F1E8D8' },
