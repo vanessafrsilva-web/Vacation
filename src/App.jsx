@@ -23,7 +23,11 @@ import { Profil } from './components/Profil';
 import { Galerie } from './components/Galerie';
 import { Perso } from './components/Perso';
 import { SpotsPhoto } from './components/SpotsPhoto';
+import { ADMIN_EMAIL } from './components/AdminAcces';
 import { IconChevronDown, IconPlus, IconPlaneDeparture, IconTrash, IconMapPin, IconCalendar, IconBriefcase, IconSun, IconHome, IconPhoto, IconArrowRight, IconArrowLeft, IconUsers, IconUserPlus, IconX, IconMail, IconLogout, IconUserCircle, IconNotebook, IconToolsKitchen2, IconTool, IconHeart, IconCamera } from '@tabler/icons-react';
+
+// Modules qui se trouvent à l'intérieur de Perso (pour savoir si la carte Perso doit s'afficher)
+const IDS_MODULES_PERSO = ['van', 'taches', 'recettes', 'dates', 'garde', 'accord'];
 
 function App() {
   const [appDemarree, setAppDemarree] = useState(false);
@@ -63,10 +67,38 @@ function App() {
   const [moduleActif, setModuleActif] = useState(null); // null = accueil, 'voyages', 'restos'
   const monNom = utilisateur?.displayName || utilisateur?.email?.split('@')[0] || 'Vous';
 
+  // Accès aux modules de l'écran d'accueil (géré depuis Perso > Accès)
+  // undefined = chargement, null = aucune fiche d'accès, tableau = liste des modules autorisés
+  const [acces, setAcces] = useState(undefined);
+  const emailMin = (utilisateur?.email || '').toLowerCase();
+  const estAdmin = emailMin !== '' && emailMin === ADMIN_EMAIL.toLowerCase();
+
+  const peutVoirAccueil = (id) => {
+    if (estAdmin) return true;
+    if (acces === undefined) return false;
+    // Sans fiche d'accès : uniquement Planning Voyages
+    if (acces === null) return id === 'voyages';
+    if (id === 'perso') {
+      return acces.includes('perso') || IDS_MODULES_PERSO.some((m) => acces.includes(m));
+    }
+    return acces.includes(id);
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => setUtilisateur(u));
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!utilisateur) { setAcces(undefined); return; }
+    if (!emailMin) { setAcces(null); return; }
+    const unsub = onSnapshot(
+      doc(db, 'acces', emailMin),
+      (snap) => setAcces(snap.exists() ? (snap.data().modules || []) : null),
+      () => setAcces(null)
+    );
+    return () => unsub();
+  }, [utilisateur, emailMin]);
 
   // Sur iPhone (surtout en PWA "Sur l'écran d'accueil"), iOS coupe la
   // connexion temps réel de Firestore quand l'app passe en arrière-plan,
@@ -1142,20 +1174,35 @@ function App() {
     return <CarnetGlobal voyages={voyages} onClose={() => setShowCarnet(false)} />;
   }
 
-  if (moduleActif === 'restos') {
+  // Si la personne n'a pas (ou plus) accès au module demandé, on la ramène à l'accueil
+  const moduleEffectif = (moduleActif && !peutVoirAccueil(moduleActif)) ? null : moduleActif;
+
+  if (moduleEffectif === 'restos') {
     return <MesRestos utilisateur={utilisateur} monNom={monNom} onClose={() => setModuleActif(null)} />;
   }
 
-  if (moduleActif === 'perso') {
+  if (moduleEffectif === 'perso') {
     return <Perso utilisateur={utilisateur} onClose={() => setModuleActif(null)} />;
   }
 
-  if (moduleActif === 'spots-photo') {
+  if (moduleEffectif === 'spots-photo') {
     return <SpotsPhoto utilisateur={utilisateur} onClose={() => setModuleActif(null)} />;
   }
 
-  // --- ÉCRAN D'ACCUEIL : choix entre les deux modules ---
-  if (moduleActif === null) {
+  // --- ÉCRAN D'ACCUEIL : choix entre les modules autorisés ---
+  if (moduleEffectif === null) {
+    // On attend de connaître les accès avant d'afficher les cartes
+    if (!estAdmin && acces === undefined) {
+      return (
+        <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ width: '28px', height: '28px', border: '3px solid #E8DFCF', borderTopColor: '#B8863C', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      );
+    }
+
+    const aucunModule = !['voyages', 'restos', 'perso', 'spots-photo'].some((id) => peutVoirAccueil(id));
+
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#F7F1E8', fontFamily: "system-ui, -apple-system, sans-serif", display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px' }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&display=swap');`}</style>
@@ -1171,73 +1218,87 @@ function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '440px', margin: '0 auto', width: '100%' }}>
-          <div
-            onClick={() => setModuleActif('voyages')}
-            style={{
-              backgroundColor: '#2B2420', borderRadius: '22px', padding: '28px 26px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
-            }}
-          >
-            <div style={{ backgroundColor: 'rgba(184,134,60,0.22)', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
-              <IconPlaneDeparture size={30} />
+          {aucunModule && (
+            <div style={{ padding: '30px 20px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '22px', border: '1px dashed #E8DFCF', color: '#B5A793', fontSize: '13.5px' }}>
+              Tu n'as accès à aucun module pour l'instant.
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '19px', fontWeight: '800', color: '#FFFFFF', fontFamily: "'Playfair Display', Georgia, serif" }}>Planning Voyages</div>
-              <div style={{ fontSize: '12.5px', color: '#D9CDB8', marginTop: '3px' }}>Tes roadtrips, checklists, budgets et itinéraires</div>
-            </div>
-            <IconArrowRight size={20} color="#D9CDB8" />
-          </div>
+          )}
 
-          <div
-            onClick={() => setModuleActif('restos')}
-            style={{
-              backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
-            }}
-          >
-            <div style={{ backgroundColor: '#FBF3E3', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
-              <IconToolsKitchen2 size={30} />
+          {peutVoirAccueil('voyages') && (
+            <div
+              onClick={() => setModuleActif('voyages')}
+              style={{
+                backgroundColor: '#2B2420', borderRadius: '22px', padding: '28px 26px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+              }}
+            >
+              <div style={{ backgroundColor: 'rgba(184,134,60,0.22)', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+                <IconPlaneDeparture size={30} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '19px', fontWeight: '800', color: '#FFFFFF', fontFamily: "'Playfair Display', Georgia, serif" }}>Planning Voyages</div>
+                <div style={{ fontSize: '12.5px', color: '#D9CDB8', marginTop: '3px' }}>Tes roadtrips, checklists, budgets et itinéraires</div>
+              </div>
+              <IconArrowRight size={20} color="#D9CDB8" />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Papilles Nomades</div>
-              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Ton carnet de restos, partout dans le monde</div>
-            </div>
-            <IconArrowRight size={20} color="#B5A793" />
-          </div>
+          )}
 
-          <div
-            onClick={() => setModuleActif('perso')}
-            style={{
-              backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
-            }}
-          >
-            <div style={{ backgroundColor: '#EAF2EC', color: '#4A7C59', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
-              <IconHeart size={30} />
+          {peutVoirAccueil('restos') && (
+            <div
+              onClick={() => setModuleActif('restos')}
+              style={{
+                backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+              }}
+            >
+              <div style={{ backgroundColor: '#FBF3E3', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+                <IconToolsKitchen2 size={30} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Papilles Nomades</div>
+                <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Ton carnet de restos, partout dans le monde</div>
+              </div>
+              <IconArrowRight size={20} color="#B5A793" />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</div>
-              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Voiture, tâches, recettes et vos petites attentions</div>
-            </div>
-            <IconArrowRight size={20} color="#B5A793" />
-          </div>
+          )}
 
-          <div
-            onClick={() => setModuleActif('spots-photo')}
-            style={{
-              backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
-            }}
-          >
-            <div style={{ backgroundColor: '#F1E8D8', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
-              <IconCamera size={30} />
+          {peutVoirAccueil('perso') && (
+            <div
+              onClick={() => setModuleActif('perso')}
+              style={{
+                backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+              }}
+            >
+              <div style={{ backgroundColor: '#EAF2EC', color: '#4A7C59', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+                <IconHeart size={30} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Perso</div>
+                <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Voiture, tâches, recettes et vos petites attentions</div>
+              </div>
+              <IconArrowRight size={20} color="#B5A793" />
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Grand Tour CH</div>
-              <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Les grands spots suisses, un par un</div>
+          )}
+
+          {peutVoirAccueil('spots-photo') && (
+            <div
+              onClick={() => setModuleActif('spots-photo')}
+              style={{
+                backgroundColor: '#FFFFFF', border: '1px solid #E8DFCF', borderRadius: '22px', padding: '28px 26px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '18px'
+              }}
+            >
+              <div style={{ backgroundColor: '#F1E8D8', color: '#B8863C', padding: '16px', borderRadius: '16px', display: 'flex', flexShrink: 0 }}>
+                <IconCamera size={30} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '19px', fontWeight: '800', color: '#2B2420', fontFamily: "'Playfair Display', Georgia, serif" }}>Grand Tour CH</div>
+                <div style={{ fontSize: '12.5px', color: '#8A7B68', marginTop: '3px' }}>Les grands spots suisses, un par un</div>
+              </div>
+              <IconArrowRight size={20} color="#B5A793" />
             </div>
-            <IconArrowRight size={20} color="#B5A793" />
-          </div>
+          )}
         </div>
 
         <button
