@@ -170,9 +170,9 @@ function LoyerCalc({ donnees }) {
         <span style={{ textAlign: 'right' }}>P2</span>
       </div>
       {ligne('Part de chacune', parts ? `${parts.p1.toFixed(1)} %` : '—', parts ? `${parts.p2.toFixed(1)} %` : '—')}
-      {ligne(`Loyer sans parking (${chf(LOYER_NET)})`, loyer1 !== null ? chf(loyer1) : '—', loyer2 !== null ? chf(loyer2) : '—')}
+      {ligne(`Loyer + charges, sans parking (${chf(LOYER_NET)})`, loyer1 !== null ? chf(loyer1) : '—', loyer2 !== null ? chf(loyer2) : '—')}
       {ligne('Place de parc', chf(PARKING_P1), chf(PARKING_P2))}
-      {ligne('Total par mois, hors charges', tot1 !== null ? chf(tot1) : '—', tot2 !== null ? chf(tot2) : '—', true)}
+      {ligne('Total par mois, charges et parking compris', tot1 !== null ? chf(tot1) : '—', tot2 !== null ? chf(tot2) : '—', true)}
       {ligne('Part du revenu net payée en loyer', pct(tot1, donnees?.revenuP1), pct(tot2, donnees?.revenuP2))}
     </div>
   );
