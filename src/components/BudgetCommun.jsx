@@ -13,7 +13,8 @@ import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconCheck } fro
 //   revenus      : { uid: revenu net mensuel }
 //   repartition  : 'prorata' | 'egal' | 'manuel'
 //   partA        : % payé par uidA quand repartition === 'manuel'
-//   lignes       : { idLigne: { id, nom, cat: 'fixe'|'env', type, prevu, reel, paye, payePar, ordre } }
+//   valide       : { uid: true|false } validation du mois par chacune
+//   lignes       : { idLigne: { id, nom, cat: 'fixe'|'env', type, freq (jour|semaine|mois|trimestre|semestre|an), prevu, reel, paye, payePar, ordre } }
 //
 // La liaison des comptes se fait dans l'accord de cohabitation
 // (on réutilise accord_prive/{uid}.partenaireUid).
@@ -42,6 +43,8 @@ const SUPPR = '__suppr__';
 
 const nouvelId = (prefixe) => `${prefixe}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
+const propre = (o) => JSON.parse(JSON.stringify(o));
+
 const num = (x) => {
   const n = parseFloat(String(x ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -49,6 +52,19 @@ const num = (x) => {
 const fmt = (n) =>
   `${(Math.round(n * 100) / 100).toLocaleString('fr-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CHF`;
 const pc = (n) => `${(Math.round(n * 10) / 10).toString().replace('.', ',')} %`;
+
+// --- Fréquences : le montant saisi est celui payé à chaque fois ---------
+const FREQS = [
+  ['jour', 'Tous les jours', 365 / 12],
+  ['semaine', 'Chaque semaine', 52 / 12],
+  ['mois', 'Chaque mois', 1],
+  ['trimestre', 'Tous les 3 mois', 1 / 3],
+  ['semestre', 'Tous les 6 mois', 1 / 6],
+  ['an', 'Chaque année', 1 / 12]
+];
+const infoFreq = (f) => FREQS.find((x) => x[0] === f) || FREQS[2];
+// Montant prévu ramené à un mois (ce que vous mettez de côté chaque mois)
+const prevuMois = (l) => (l.cat === 'env' ? num(l.prevu) : num(l.prevu) * infoFreq(l.freq)[2]);
 
 // --- Mois -------------------------------------------------------------
 const moisCourant = () => {
@@ -68,12 +84,12 @@ const libelleMois = (m) => {
 
 // --- Modèle de départ (montants à remplir par vous) ---------------------
 const MODELE = [
-  ['Loyer + charges', 'fixe', 'Obligatoire'],
-  ['Électricité', 'fixe', 'Obligatoire'],
-  ['Internet', 'fixe', 'Obligatoire'],
-  ['Assurance ménage (RC)', 'fixe', 'Obligatoire'],
-  ['Redevance radio/TV', 'fixe', 'Obligatoire'],
-  ['Abonnements partagés (Netflix…)', 'fixe', 'Plaisir'],
+  ['Loyer + charges', 'fixe', 'Obligatoire', 'mois'],
+  ['Électricité', 'fixe', 'Obligatoire', 'trimestre'],
+  ['Internet', 'fixe', 'Obligatoire', 'mois'],
+  ['Assurance ménage (RC)', 'fixe', 'Obligatoire', 'an'],
+  ['Redevance radio/TV', 'fixe', 'Obligatoire', 'an'],
+  ['Abonnements partagés (Netflix…)', 'fixe', 'Plaisir', 'mois'],
   ['Courses', 'env', 'Obligatoire'],
   ['Produits ménagers & maison', 'env', 'Obligatoire'],
   ['Restaurants', 'env', 'Plaisir'],
@@ -91,12 +107,13 @@ function normaliser(d) {
     noms: d?.noms || {},
     repartition: d?.repartition || 'prorata',
     partA: d?.partA ?? 50,
-    lignes: d?.lignes || {}
+    lignes: d?.lignes || {},
+    valide: d?.valide || {}
   };
 }
 
 function appliquerPending(base, p) {
-  const out = { ...base, revenus: { ...base.revenus }, noms: { ...base.noms }, lignes: { ...base.lignes } };
+  const out = { ...base, revenus: { ...base.revenus }, noms: { ...base.noms }, lignes: { ...base.lignes }, valide: { ...base.valide } };
   Object.entries(p.scalars).forEach(([k, v]) => { out[k] = v; });
   Object.entries(p.maps).forEach(([champ, m]) => {
     Object.entries(m).forEach(([k, v]) => {
@@ -133,7 +150,8 @@ function fusionner(a, b) {
 function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, uid, partenaireUid }) {
   const [ajout, setAjout] = useState('');
   const env = l.cat === 'env';
-  const prevu = num(l.prevu);
+  const montant = num(l.prevu); // à chaque paiement
+  const prevu = prevuMois(l); // ramené à un mois
   const reel = num(l.reel);
   const reste = env || !l.paye ? Math.max(prevu - reel, 0) : 0;
   const depasse = prevu > 0 && reel > prevu ? reel - prevu : 0;
@@ -142,7 +160,7 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
 
   const bascule = () => {
     const paye = !l.paye;
-    set({ paye, reel: paye && !l.reel ? l.prevu : l.reel });
+    set({ paye, reel: paye && !l.reel && prevu > 0 ? String(Math.round(prevu * 100) / 100) : l.reel });
   };
 
   const petit = { ...inputStyle, padding: '8px 10px', fontSize: '14px' };
@@ -181,8 +199,8 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-        {mini('Prévu', <input type="number" inputMode="decimal" step="any" value={l.prevu ?? ''} onChange={(e) => set({ prevu: e.target.value })} style={petit} />)}
-        {mini(env ? 'Dépensé' : 'Réel', <input type="number" inputMode="decimal" step="any" value={l.reel ?? ''} onChange={(e) => set({ reel: e.target.value })} style={petit} />)}
+        {mini(env ? 'Prévu' : 'Montant', <input type="number" inputMode="decimal" step="any" value={l.prevu ?? ''} onChange={(e) => set({ prevu: e.target.value })} style={petit} />)}
+        {mini(env ? 'Dépensé' : 'Réel (ce mois)', <input type="number" inputMode="decimal" step="any" value={l.reel ?? ''} onChange={(e) => set({ reel: e.target.value })} style={petit} />)}
         {mini('Reste', (
           <div style={{ padding: '8px 2px', fontSize: '14px', fontWeight: '800', color: depasse ? ROUGE : '#2B2420' }}>
             {depasse ? `+${fmt(depasse)}` : fmt(reste)}
@@ -218,6 +236,13 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
             {l.type === 'Plaisir' ? 'Plaisir' : 'Obligatoire'}
           </button>
           <select
+            value={l.freq || 'mois'}
+            onChange={(e) => set({ freq: e.target.value })}
+            style={{ ...petit, width: 'auto', minWidth: '125px', fontSize: '12.5px', padding: '6px 8px' }}
+          >
+            {FREQS.map(([id, lib]) => <option key={id} value={id}>{lib}</option>)}
+          </select>
+          <select
             value={l.payePar || ''}
             onChange={(e) => set({ payePar: e.target.value })}
             style={{ ...petit, width: 'auto', flex: 1, minWidth: '130px', fontSize: '12.5px', padding: '6px 8px' }}
@@ -229,9 +254,15 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
         </div>
       )}
 
+      {!env && montant > 0 && (l.freq || 'mois') !== 'mois' && (
+        <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: ACCENT, fontWeight: '700' }}>
+          {fmt(montant)} {infoFreq(l.freq)[1].toLowerCase()} = {fmt(prevu)} à mettre de côté par mois
+        </p>
+      )}
+
       {prevu > 0 && (
         <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#8A7B68', fontWeight: '600' }}>
-          {nomMoi} {fmt((prevu * pctMoi) / 100)} · {nomElle} {fmt((prevu * pctElle) / 100)}
+          {nomMoi} {fmt((prevu * pctMoi) / 100)} · {nomElle} {fmt((prevu * pctElle) / 100)}{!env ? ' par mois' : ''}
         </p>
       )}
     </div>
@@ -255,9 +286,14 @@ export function BudgetCommun({ utilisateur }) {
   const timerRef = useRef(null);
   const ctxRef = useRef({ docId: '', membres: [], mois });
 
-  const membres = partenaireUid ? [uid, partenaireUid].sort() : [];
-  const docId = partenaireUid ? `${membres.join('_')}_${mois}` : '';
+  // Sans partenaire : mode solo (document à moi seule). L'autre personne est « autre ».
+  const autreId = partenaireUid || 'autre';
+  const membres = partenaireUid ? [uid, partenaireUid].sort() : [uid]; // pour Firestore
+  const membresCalc = [uid, autreId].sort(); // pour les calculs
+  const idMois = (m) => (partenaireUid ? `${membres.join('_')}_${m}` : `${uid}_solo_${m}`);
+  const docId = partenaireUid === null ? '' : idMois(mois);
   ctxRef.current = { docId, membres, mois };
+  const migreRef = useRef(new Set());
 
   // --- Qui est ma partenaire ? (défini dans l'accord de cohabitation) ---
   useEffect(() => {
@@ -294,12 +330,41 @@ export function BudgetCommun({ utilisateur }) {
 
   // --- Écoute du budget du mois ---
   useEffect(() => {
-    if (!uid || !partenaireUid) return;
+    if (!uid || partenaireUid === null) return;
     setCharge(false);
     setData(normaliser({}));
+
+    // Quand les comptes sont reliés : reprend le budget fait en solo pour ce mois
+    const migrerDepuisSolo = async () => {
+      try {
+        const solo = await getDoc(doc(db, 'budget_commun', `${uid}_solo_${mois}`));
+        if (!solo.exists()) return;
+        const d = normaliser(solo.data());
+        const remp = (u) => (u === 'autre' ? partenaireUid : u);
+        const renommer = (o) => { const r = {}; Object.entries(o).forEach(([k, v]) => { r[remp(k)] = v; }); return r; };
+        const lignes = {};
+        Object.values(d.lignes).forEach((l) => { lignes[l.id] = { ...l, payePar: remp(l.payePar || '') }; });
+        const soloA = [uid, 'autre'].sort()[0];
+        const pctMoiSolo = soloA === uid ? num(d.partA) : 100 - num(d.partA);
+        const mb = [uid, partenaireUid].sort();
+        const partA = mb[0] === uid ? pctMoiSolo : 100 - pctMoiSolo;
+        await setDoc(
+          doc(db, 'budget_commun', docId),
+          { ...propre({ membres: mb, mois, revenus: renommer(d.revenus), noms: renommer(d.noms), repartition: d.repartition, partA, lignes, valide: {} }), maj: serverTimestamp() },
+          { merge: true }
+        );
+      } catch (e) {
+        console.error('Reprise du budget solo :', e);
+      }
+    };
+
     const unsub = onSnapshot(
       doc(db, 'budget_commun', docId),
       (snap) => {
+        if (!snap.exists() && partenaireUid && !migreRef.current.has(docId)) {
+          migreRef.current.add(docId);
+          migrerDepuisSolo();
+        }
         const base = normaliser(snap.exists() ? snap.data() : {});
         setData(appliquerPending(base, pendingRef.current));
         setCharge(true);
@@ -319,7 +384,11 @@ export function BudgetCommun({ utilisateur }) {
   // Applique une modification localement ET la met en file d'attente
   const modifier = (patch) => {
     const scalars = patch.scalars || {};
-    const maps = patch.maps || {};
+    let maps = patch.maps || {};
+    // Toute modification annule les validations déjà données
+    if (!patch.garderValide && partenaireUid && Object.values(data.valide || {}).some(Boolean)) {
+      maps = { ...maps, valide: { [uid]: false, [partenaireUid]: false } };
+    }
     const p = pendingRef.current;
     Object.assign(p.scalars, scalars);
     Object.entries(maps).forEach(([champ, m]) => { p.maps[champ] = { ...(p.maps[champ] || {}), ...m }; });
@@ -334,6 +403,7 @@ export function BudgetCommun({ utilisateur }) {
   const setNom = (u, v) => modifier({ maps: { noms: { [u]: v } } });
   const setLigne = (l) => modifier({ maps: { lignes: { [l.id]: l } } });
   const supprLigne = (id) => modifier({ maps: { lignes: { [id]: SUPPR } } });
+  const basculerValidation = () => modifier({ maps: { valide: { [uid]: !data.valide[uid] } }, garderValide: true });
 
   const changerMois = async (delta) => {
     await flush();
@@ -342,21 +412,21 @@ export function BudgetCommun({ utilisateur }) {
 
   const ajouterLigne = (cat) => {
     const ordre = Math.max(-1, ...Object.values(data.lignes).map((x) => x.ordre ?? 0)) + 1;
-    setLigne({ id: nouvelId('l'), nom: '', cat, type: cat === 'fixe' ? 'Obligatoire' : 'Plaisir', prevu: '', reel: '', paye: false, payePar: '', ordre });
+    setLigne({ id: nouvelId('l'), nom: '', cat, type: cat === 'fixe' ? 'Obligatoire' : 'Plaisir', freq: 'mois', prevu: '', reel: '', paye: false, payePar: '', ordre });
   };
 
   const demarrerModele = () => {
     const lignes = {};
-    MODELE.forEach(([nom, cat, type], i) => {
+    MODELE.forEach(([nom, cat, type, freq], i) => {
       const id = nouvelId('l');
-      lignes[id] = { id, nom, cat, type, prevu: '', reel: '', paye: false, payePar: '', ordre: i };
+      lignes[id] = { id, nom, cat, type, freq: freq || 'mois', prevu: '', reel: '', paye: false, payePar: '', ordre: i };
     });
     modifier({ maps: { lignes } });
   };
 
   const reprendrePrecedent = async () => {
     try {
-      const snap = await getDoc(doc(db, 'budget_commun', `${membres.join('_')}_${decaler(mois, -1)}`));
+      const snap = await getDoc(doc(db, 'budget_commun', idMois(decaler(mois, -1))));
       if (!snap.exists()) { setErreur('Il n’y a pas de budget le mois précédent.'); return; }
       setErreur('');
       const d = normaliser(snap.data());
@@ -377,23 +447,13 @@ export function BudgetCommun({ utilisateur }) {
   if (partenaireUid === null) {
     return <p style={{ textAlign: 'center', color: '#B5A793', fontSize: '13.5px', padding: '40px 0' }}>Chargement…</p>;
   }
-  if (!partenaireUid) {
-    return (
-      <div style={{ ...carte, textAlign: 'center', padding: '28px 18px' }}>
-        <p style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: '800', color: '#2B2420' }}>Relie d’abord vos deux comptes</p>
-        <p style={{ margin: 0, fontSize: '12.5px', color: '#8A7B68', lineHeight: '1.5' }}>
-          Le budget est partagé à deux. Colle le code de ta partenaire dans l’accord de cohabitation (« Relier vos deux comptes »), puis reviens ici.
-        </p>
-      </div>
-    );
-  }
   if (!charge) {
     return <p style={{ textAlign: 'center', color: '#B5A793', fontSize: '13.5px', padding: '40px 0' }}>Chargement…</p>;
   }
 
   // --- Calculs ---
-  const A = membres[0];
-  const B = membres[1];
+  const A = membresCalc[0];
+  const B = membresCalc[1];
   const iAmA = A === uid;
   const rev = (u) => num(data.revenus[u]);
   const totalRev = rev(A) + rev(B);
@@ -404,20 +464,20 @@ export function BudgetCommun({ utilisateur }) {
   else pctA = totalRev > 0 ? (rev(A) / totalRev) * 100 : 50;
   const pct = { [A]: pctA, [B]: 100 - pctA };
   const pctMoi = pct[uid];
-  const pctElle = pct[partenaireUid];
+  const pctElle = pct[autreId];
 
   const nomMoi = data.noms[uid] || 'Moi';
-  const nomElle = data.noms[partenaireUid] || 'Elle';
+  const nomElle = data.noms[autreId] || 'Elle';
 
   const lignes = Object.values(data.lignes).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   const fixes = lignes.filter((l) => l.cat !== 'env');
   const envs = lignes.filter((l) => l.cat === 'env');
 
-  const resteLigne = (l) => (l.cat === 'env' || !l.paye ? Math.max(num(l.prevu) - num(l.reel), 0) : 0);
-  const totPrevu = lignes.reduce((s, l) => s + num(l.prevu), 0);
+  const resteLigne = (l) => (l.cat === 'env' || !l.paye ? Math.max(prevuMois(l) - num(l.reel), 0) : 0);
+  const totPrevu = lignes.reduce((s, l) => s + prevuMois(l), 0);
   const totReel = lignes.reduce((s, l) => s + num(l.reel), 0);
   const totReste = lignes.reduce((s, l) => s + resteLigne(l), 0);
-  const totPrevuFixes = fixes.reduce((s, l) => s + num(l.prevu), 0);
+  const totPrevuFixes = fixes.reduce((s, l) => s + prevuMois(l), 0);
   const avancement = totPrevu > 0 ? Math.min((totReel / totPrevu) * 100, 100) : 0;
 
   // Équilibre : qui a avancé de l'argent pour l'autre ? (positif = elle me doit)
@@ -463,6 +523,12 @@ export function BudgetCommun({ utilisateur }) {
         </div>
       )}
 
+      {!partenaireUid && (
+        <div style={{ padding: '11px 14px', borderRadius: '12px', backgroundColor: ACCENT_BG, color: ACCENT, fontSize: '12.5px', fontWeight: '700', lineHeight: '1.45', marginBottom: '14px' }}>
+          Mode solo : remplis tout de ton côté. Quand vous reliez vos comptes (dans « Notre accord »), ton budget est repris automatiquement et elle n’a plus qu’à valider.
+        </div>
+      )}
+
       {/* Mois */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <button type="button" onClick={() => changerMois(-1)} style={petitBouton}><IconChevronLeft size={24} /></button>
@@ -478,7 +544,7 @@ export function BudgetCommun({ utilisateur }) {
         <p style={titreCarte}>QUI PAIE QUELLE PART ?</p>
         <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
           {colonnePersonne(uid, ACCENT, true)}
-          {colonnePersonne(partenaireUid, BLEU, false)}
+          {colonnePersonne(autreId, BLEU, false)}
         </div>
 
         <div style={{ display: 'flex', height: '14px', borderRadius: '999px', overflow: 'hidden', backgroundColor: '#F1E8D8', marginBottom: '14px' }}>
@@ -543,7 +609,7 @@ export function BudgetCommun({ utilisateur }) {
           {ligneTab('Prévu', fmt((totPrevu * pctMoi) / 100), fmt((totPrevu * pctElle) / 100))}
           {ligneTab('Déjà dépensé', fmt((totReel * pctMoi) / 100), fmt((totReel * pctElle) / 100))}
           {ligneTab('Reste à payer', fmt((totReste * pctMoi) / 100), fmt((totReste * pctElle) / 100), true)}
-          {ligneTab('Part du revenu net', partRevenu(uid), partRevenu(partenaireUid))}
+          {ligneTab('Part du revenu net', partRevenu(uid), partRevenu(autreId))}
         </div>
 
         {aDesPayeurs && (
@@ -556,6 +622,29 @@ export function BudgetCommun({ utilisateur }) {
           </p>
         )}
       </div>
+
+      {/* Validation */}
+      {partenaireUid && lignes.length > 0 && (
+        <div style={carte}>
+          <p style={titreCarte}>VALIDATION DU MOIS</p>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+            {[[uid, nomMoi, ACCENT], [partenaireUid, nomElle, BLEU]].map(([u, nom, couleur]) => (
+              <div key={u} style={{ flex: 1, minWidth: 0, textAlign: 'center', padding: '10px 6px', borderRadius: '12px', backgroundColor: data.valide[u] ? '#E6F9F1' : '#F7F1E8' }}>
+                <p style={{ margin: '0 0 3px 0', fontSize: '12.5px', fontWeight: '800', color: couleur, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</p>
+                <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: data.valide[u] ? VERT : '#B5A793' }}>{data.valide[u] ? '✓ validé' : 'en attente'}</p>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={basculerValidation}
+            style={{ width: '100%', padding: '12px', borderRadius: '12px', border: data.valide[uid] ? '1px solid #E8DFCF' : 'none', backgroundColor: data.valide[uid] ? '#FFFFFF' : ACCENT, color: data.valide[uid] ? '#8A7B68' : '#FFFFFF', fontWeight: '800', fontSize: '13.5px', cursor: 'pointer' }}
+          >
+            {data.valide[uid] ? 'Retirer ma validation' : 'Valider ce budget'}
+          </button>
+          <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#B5A793', textAlign: 'center' }}>Si quelqu’un modifie un montant, les validations sont remises à zéro.</p>
+        </div>
+      )}
 
       {/* Démarrage */}
       {lignes.length === 0 && (
@@ -597,14 +686,14 @@ export function BudgetCommun({ utilisateur }) {
       {/* Dépenses fixes */}
       <div style={{ backgroundColor: ACCENT_BG, borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: '17px', fontWeight: '800', color: ACCENT, fontFamily: SERIF }}>Dépenses fixes</span>
-        <span style={{ fontSize: '15px', fontWeight: '800', color: ACCENT }}>{fmt(totPrevuFixes)}</span>
+        <span style={{ fontSize: '14px', fontWeight: '800', color: ACCENT }}>{fmt(totPrevuFixes)} / mois</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
         {fixes.map((l) => (
           <LigneBudget
             key={l.id} l={l} onChange={setLigne}
             onDelete={() => { if (window.confirm('Supprimer cette ligne ?')) supprLigne(l.id); }}
-            pctMoi={pctMoi} pctElle={pctElle} nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={partenaireUid}
+            pctMoi={pctMoi} pctElle={pctElle} nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
           />
         ))}
       </div>
@@ -625,7 +714,7 @@ export function BudgetCommun({ utilisateur }) {
           <LigneBudget
             key={l.id} l={l} onChange={setLigne}
             onDelete={() => { if (window.confirm('Supprimer cette enveloppe ?')) supprLigne(l.id); }}
-            pctMoi={pctMoi} pctElle={pctElle} nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={partenaireUid}
+            pctMoi={pctMoi} pctElle={pctElle} nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
           />
         ))}
       </div>
