@@ -8,9 +8,10 @@ import {
   IconArrowLeft, IconPlus, IconX, IconTrash, IconPencil, IconTool, IconChecklist,
   IconCalendar, IconGauge, IconCamera, IconAlertTriangle, IconCircle, IconCircleCheckFilled,
   IconNote, IconChevronDown, IconChefHat, IconBook2, IconCalendarWeek, IconChevronLeft, IconChevronRight,
-  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize, IconPaw
+  IconHeart, IconGift, IconMapPin, IconClock, IconBulb, IconArrowRight, IconMaximize, IconPaw, IconWallet
 } from '@tabler/icons-react';
 import { AccordCohabitation } from './AccordCohabitation';
+import { BudgetCommun } from './BudgetCommun';
 import { AdminAcces, ADMIN_EMAIL } from './AdminAcces';
 
 const MODULES_PERSO = [
@@ -19,7 +20,8 @@ const MODULES_PERSO = [
   { id: 'recettes', titre: 'Recettes', description: 'Carnet de recettes et planning des repas', icon: IconChefHat, couleur: '#B97490', fond: '#F8EFF2' },
   { id: 'dates', titre: 'Nos Dates', description: 'Journal des attentions et planification de vos rendez-vous', icon: IconHeart, couleur: '#C2707D', fond: '#F8EFF2' },
   { id: 'garde', titre: 'Garde des Chats', description: 'Calendrier pour organiser qui passe pendant tes vacances', icon: IconPaw, couleur: '#6E8AA6', fond: '#EEF2F0' },
-  { id: 'accord', titre: 'Notre accord', description: 'Accord de cohabitation : chacune remplit de son côté, puis on compare', icon: IconNote, couleur: '#9A6B87', fond: '#F3ECF1' }
+  { id: 'accord', titre: 'Notre accord', description: 'Accord de cohabitation : chacune remplit de son côté, puis on compare', icon: IconNote, couleur: '#9A6B87', fond: '#F3ECF1' },
+  { id: 'budget', titre: 'Budget commun', description: 'Qui paie quoi à la maison : répartition, dépenses fixes, enveloppes', icon: IconWallet, couleur: '#6E8AA6', fond: '#EEF2F0' }
 ];
 
 const TYPES_ENTRETIEN = [
@@ -193,6 +195,7 @@ export function Perso({ utilisateur, onClose }) {
         {ongletActif === 'dates' && peutVoir('dates') && <DatesPerso utilisateur={utilisateur} />}
         {ongletActif === 'garde' && peutVoir('garde') && <GardeChats utilisateur={utilisateur} />}
         {ongletActif === 'accord' && peutVoir('accord') && <AccordCohabitation utilisateur={utilisateur} />}
+        {ongletActif === 'budget' && peutVoir('budget') && <BudgetCommun utilisateur={utilisateur} />}
       </div>
     </div>
   );
