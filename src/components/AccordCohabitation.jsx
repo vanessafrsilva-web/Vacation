@@ -5,7 +5,7 @@ import {
   IconArrowLeft, IconPlus, IconTrash, IconCheck, IconLock, IconLockOpen,
   IconChevronRight, IconCopy, IconUsers, IconRefresh
 } from '@tabler/icons-react';
-import { LOYER_NET, PARKING_P1, PARKING_P2, chf, calcParts, CALCULS, modeleParDefaut } from './accordSchema';
+import { LOYER_NET, PARKING_P1, PARKING_P2, chf, calcParts, CALCULS, modeleParDefaut, SECTIONS } from './accordSchema';
 
 // =====================================================================
 // ACCORD DE COHABITATION — version simple.
@@ -405,7 +405,7 @@ export function AccordCohabitation({ utilisateur }) {
       (snap) => {
         if (snap.exists()) {
           const d = snap.data();
-          setModele({ noms: d.noms || { P1: '', P2: '' }, sections: d.sections || [] });
+          setModele({ noms: d.noms || { P1: '', P2: '' }, sections: SECTIONS });
         } else {
           setModele(modeleParDefaut());
         }
@@ -552,7 +552,8 @@ export function AccordCohabitation({ utilisateur }) {
     return <p style={{ textAlign: 'center', color: '#B5A793', fontSize: '13.5px', padding: '40px 0' }}>Chargement…</p>;
   }
 
-  const sections = modele.sections || [];
+  // Les questions viennent toujours du fichier accordSchema (liste courte).
+  const sections = SECTIONS;
 
   // ===================================================================
   // UNE SECTION
