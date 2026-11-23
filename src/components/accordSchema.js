@@ -232,35 +232,6 @@ export const SECTIONS = [
 
   // ===================================================================
   {
-    id: 's8',
-    titre: 'Si ça ne marche pas',
-    emoji: '🧳',
-    intro: 'Y penser maintenant, quand tout va bien, permet de se quitter sans se détruire.',
-    blocs: [
-      {
-        champs: [
-          choix('preavis', 'Préavis entre nous', ['1 mois', '2 mois', '3 mois']),
-          choix('resteLogement', 'Qui reste dans le logement', [
-            'P1 reste (titulaire du bail, avec les chats) et P2 déménage',
-            'on rend le logement ensemble',
-            'à voir selon la régie et le bail'
-          ]),
-          choix('chatsRevoir', 'P2 peut revoir les chats', ['oui', 'non', 'à voir']),
-          cases('aidePratique', 'Aide pour se reloger', [
-            'on cherche ensemble les annonces',
-            'une journée de déménagement avec aide',
-            'stockage temporaire des affaires',
-            'un coup de pouce financier (à voir dans Budget commun)'
-          ]),
-          choix('contact', 'Après la séparation', ['pause totale', 'uniquement pour l’administratif', 'on reste en contact amical', 'à voir']),
-          info('En concubinage, la loi ne prévoit pas de règles de partage comme pour le mariage : ce document est un accord entre nous. Pour les points importants, une consultation juridique donne un cadre plus solide.')
-        ]
-      }
-    ]
-  },
-
-  // ===================================================================
-  {
     id: 's9',
     titre: 'Révision',
     emoji: '✍️',
