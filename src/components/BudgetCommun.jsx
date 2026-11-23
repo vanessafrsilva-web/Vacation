@@ -445,6 +445,19 @@ export function BudgetCommun({ utilisateur }) {
   const supprLigne = (id) => modifier({ maps: { lignes: { [id]: SUPPR } } });
   const basculerValidation = () => modifier({ maps: { valide: { [uid]: !data.valide[uid] } }, garderValide: true });
 
+  // Vide le mois affiché : lignes, revenus, virements du compte commun et validations.
+  // (On garde les prénoms et le mode de répartition.)
+  const viderMois = () => {
+    const tout = (o) => Object.keys(o || {}).reduce((acc, k) => ({ ...acc, [k]: SUPPR }), {});
+    const maps = {
+      lignes: tout(data.lignes),
+      revenus: tout(data.revenus),
+      compte: tout(data.compte),
+      valide: tout(data.valide)
+    };
+    modifier({ maps, garderValide: true });
+  };
+
   const changerMois = async (delta) => {
     await flush();
     setMois((m) => decaler(m, delta));
@@ -494,6 +507,7 @@ export function BudgetCommun({ utilisateur }) {
   }
 
   // --- Calculs ---
+  const moisAContenu = ['lignes', 'revenus', 'compte', 'valide'].some((c) => Object.keys(data[c] || {}).length > 0);
   const A = membresCalc[0];
   const B = membresCalc[1];
   const iAmA = A === uid;
@@ -630,7 +644,22 @@ export function BudgetCommun({ utilisateur }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <button type="button" onClick={() => changerMois(-1)} style={petitBouton}><IconChevronLeft size={24} /></button>
         <div style={{ textAlign: 'center' }}>
-          <p style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#2B2420', fontFamily: SERIF }}>{libelleMois(mois)}</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#2B2420', fontFamily: SERIF }}>{libelleMois(mois)}</p>
+            {moisAContenu && (
+              <button
+                type="button"
+                title="Vider ce mois"
+                aria-label="Vider ce mois"
+                onClick={() => {
+                  if (window.confirm(`Vider tout le budget de ${libelleMois(mois)} ? Dépenses, revenus, compte commun et validations seront effacés.`)) viderMois();
+                }}
+                style={{ ...petitBouton, color: ROUGE }}
+              >
+                <IconTrash size={17} />
+              </button>
+            )}
+          </div>
           <p style={{ margin: '2px 0 0 0', fontSize: '11.5px', fontWeight: '700', color: statut.startsWith('Erreur') ? ROUGE : '#B5A793', minHeight: '14px' }}>{statut}</p>
         </div>
         <button type="button" onClick={() => changerMois(1)} style={petitBouton}><IconChevronRight size={24} /></button>
