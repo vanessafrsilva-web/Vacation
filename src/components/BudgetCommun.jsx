@@ -6,19 +6,25 @@ import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconCheck, Icon
 // =====================================================================
 // BUDGET COMMUN — un budget par mois, partagé entre vous deux.
 //
+// Deux parties :
+//   1) Les dépenses fixes (loyer, électricité…) : une ligne chacune, avec
+//      fréquence, « payé par », et partage 50/50 ou prorata.
+//   2) Le compte commun (Revolut) pour le variable (bouffe, maison…) :
+//      chacun y verse un montant par mois, tout s'y dépense à 50/50 et le
+//      détail se suit dans Revolut. Pas d'enveloppes à remplir.
+//
 // Données : budget_commun/{uidA}_{uidB}_{AAAA-MM}   (uidA/uidB triés)
 //   membres      : [uidA, uidB]
 //   mois         : 'AAAA-MM'
 //   noms         : { uid: prénom }
 //   revenus      : { uid: revenu net mensuel }
-//   repartition  : 'prorata' | 'egal' | 'manuel'   (répartition globale)
+//   compte       : { uid: virement mensuel vers le compte commun }
+//   repartition  : 'prorata' | 'egal' | 'manuel'   (répartition globale des dépenses fixes)
 //   partA        : % payé par uidA quand repartition === 'manuel'
 //   valide       : { uid: true|false } validation du mois par chacune
-//   lignes       : { idLigne: { id, nom, cat: 'fixe'|'env', type, freq (jour|semaine|mois|trimestre|semestre|an), prevu, reel, paye, payePar, partage ('' | 'egal' | 'prorata'), ordre } }
+//   lignes       : { idLigne: { id, nom, cat: 'fixe', type, freq (jour|semaine|mois|trimestre|semestre|an), prevu, reel, paye, payePar, partage ('' | 'egal' | 'prorata'), ordre } }
 //
-// partage sur une ligne : '' = suit la répartition globale,
-//                         'egal' = 50/50 pour cette ligne,
-//                         'prorata' = au prorata des revenus pour cette ligne.
+// (Les anciennes lignes cat === 'env' d'avant sont ignorées à l'affichage.)
 //
 // La liaison des comptes se fait dans l'accord de cohabitation
 // (on réutilise accord_prive/{uid}.partenaireUid).
@@ -30,7 +36,6 @@ const BLEU = '#6E8AA6';
 const BLEU_BG = '#EEF2F0';
 const VERT = '#16A06B';
 const ROUGE = '#B3453A';
-const ORANGE = '#D98E2B';
 const SERIF = "'Playfair Display', Georgia, serif";
 
 const inputStyle = {
@@ -68,7 +73,7 @@ const FREQS = [
 ];
 const infoFreq = (f) => FREQS.find((x) => x[0] === f) || FREQS[2];
 // Montant prévu ramené à un mois (ce que vous mettez de côté chaque mois)
-const prevuMois = (l) => (l.cat === 'env' ? num(l.prevu) : num(l.prevu) * infoFreq(l.freq)[2]);
+const prevuMois = (l) => num(l.prevu) * infoFreq(l.freq)[2];
 
 // --- Mode de partage d'une ligne -----------------------------------------
 const CYCLE_PARTAGE = ['', 'egal', 'prorata'];
@@ -91,18 +96,14 @@ const libelleMois = (m) => {
 };
 
 // --- Modèle de départ (montants à remplir par vous) ---------------------
+// La redevance radio/TV démarre en 50/50 (modifiable avec l'icône de la ligne).
 const MODELE = [
-  ['Loyer + charges', 'fixe', 'Obligatoire', 'mois'],
-  ['Électricité', 'fixe', 'Obligatoire', 'trimestre'],
-  ['Internet', 'fixe', 'Obligatoire', 'mois'],
-  ['Assurance ménage (RC)', 'fixe', 'Obligatoire', 'an'],
-  ['Redevance radio/TV', 'fixe', 'Obligatoire', 'an'],
-  ['Abonnements partagés (Netflix…)', 'fixe', 'Plaisir', 'mois'],
-  ['Courses', 'env', 'Obligatoire'],
-  ['Produits ménagers & maison', 'env', 'Obligatoire'],
-  ['Restaurants', 'env', 'Plaisir'],
-  ['Loisirs', 'env', 'Plaisir'],
-  ['Imprévus', 'env', 'Obligatoire']
+  ['Loyer + charges', 'Obligatoire', 'mois', ''],
+  ['Électricité', 'Obligatoire', 'trimestre', ''],
+  ['Internet', 'Obligatoire', 'mois', ''],
+  ['Assurance ménage (RC)', 'Obligatoire', 'an', ''],
+  ['Redevance radio/TV', 'Obligatoire', 'an', 'egal'],
+  ['Abonnements partagés (Netflix…)', 'Plaisir', 'mois', '']
 ];
 
 // --- Gestion des modifications en attente (envoyées par petits morceaux) ---
@@ -113,6 +114,7 @@ function normaliser(d) {
   return {
     revenus: d?.revenus || {},
     noms: d?.noms || {},
+    compte: d?.compte || {},
     repartition: d?.repartition || 'prorata',
     partA: d?.partA ?? 50,
     lignes: d?.lignes || {},
@@ -121,7 +123,14 @@ function normaliser(d) {
 }
 
 function appliquerPending(base, p) {
-  const out = { ...base, revenus: { ...base.revenus }, noms: { ...base.noms }, lignes: { ...base.lignes }, valide: { ...base.valide } };
+  const out = {
+    ...base,
+    revenus: { ...base.revenus },
+    noms: { ...base.noms },
+    compte: { ...base.compte },
+    lignes: { ...base.lignes },
+    valide: { ...base.valide }
+  };
   Object.entries(p.scalars).forEach(([k, v]) => { out[k] = v; });
   Object.entries(p.maps).forEach(([champ, m]) => {
     Object.entries(m).forEach(([k, v]) => {
@@ -153,17 +162,14 @@ function fusionner(a, b) {
 }
 
 // =====================================================================
-// UNE LIGNE DE DÉPENSE
+// UNE LIGNE DE DÉPENSE FIXE
 // =====================================================================
 function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlobal, nomMoi, nomElle, uid, partenaireUid }) {
-  const [ajout, setAjout] = useState('');
-  const env = l.cat === 'env';
   const montant = num(l.prevu); // à chaque paiement
   const prevu = prevuMois(l); // ramené à un mois
   const reel = num(l.reel);
-  const reste = env || !l.paye ? Math.max(prevu - reel, 0) : 0;
+  const reste = l.paye ? 0 : Math.max(prevu - reel, 0);
   const depasse = prevu > 0 && reel > prevu ? reel - prevu : 0;
-  const pctUtilise = prevu > 0 ? (reel / prevu) * 100 : 0;
   const set = (patch) => onChange({ ...l, ...patch });
 
   const bascule = () => {
@@ -186,7 +192,7 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlob
   const IconePartage = modeEff === 'egal' ? IconEqual : IconScale;
   const titrePartage = forcee
     ? `Cette ligne : ${libelleMode(modeEff)} (clique pour changer)`
-    : `Suit la répartition choisie en haut (clique pour forcer 50/50 ou prorata)`;
+    : 'Suit la répartition choisie en haut (clique pour forcer 50/50 ou prorata)';
 
   const petit = { ...inputStyle, padding: '8px 10px', fontSize: '14px' };
   const mini = (label, contenu) => (
@@ -197,27 +203,25 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlob
   );
 
   // Virement mensuel : qui verse combien à qui (si quelqu'un a avancé la dépense)
-  const payeurEstMoi = !env && l.payePar && l.payePar === uid;
-  const payeurEstElle = !env && l.payePar && l.payePar === partenaireUid;
+  const payeurEstMoi = l.payePar && l.payePar === uid;
+  const payeurEstElle = l.payePar && l.payePar === partenaireUid;
   const virementMontant = payeurEstMoi ? (prevu * pctElle) / 100 : payeurEstElle ? (prevu * pctMoi) / 100 : 0;
 
   return (
-    <div style={{ backgroundColor: !env && l.paye ? '#F6FBF8' : '#FFFFFF', border: `1px solid ${!env && l.paye ? '#CFE8DB' : '#E8DFCF'}`, borderRadius: '14px', padding: '11px 12px' }}>
+    <div style={{ backgroundColor: l.paye ? '#F6FBF8' : '#FFFFFF', border: `1px solid ${l.paye ? '#CFE8DB' : '#E8DFCF'}`, borderRadius: '14px', padding: '11px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '9px' }}>
-        {!env && (
-          <button
-            type="button"
-            onClick={bascule}
-            aria-label="Marquer comme payé"
-            style={{
-              flexShrink: 0, width: '24px', height: '24px', borderRadius: '7px', padding: 0, cursor: 'pointer',
-              border: l.paye ? 'none' : '1.5px solid #D9CDB8', backgroundColor: l.paye ? VERT : '#FFFFFF',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}
-          >
-            {l.paye && <IconCheck size={15} color="#FFFFFF" />}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={bascule}
+          aria-label="Marquer comme payé"
+          style={{
+            flexShrink: 0, width: '24px', height: '24px', borderRadius: '7px', padding: 0, cursor: 'pointer',
+            border: l.paye ? 'none' : '1.5px solid #D9CDB8', backgroundColor: l.paye ? VERT : '#FFFFFF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          {l.paye && <IconCheck size={15} color="#FFFFFF" />}
+        </button>
         <input
           type="text"
           value={l.nom || ''}
@@ -244,8 +248,8 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlob
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-        {mini(env ? 'Prévu' : 'Montant', <input type="number" inputMode="decimal" step="any" value={l.prevu ?? ''} onChange={(e) => set({ prevu: e.target.value })} style={petit} />)}
-        {mini(env ? 'Dépensé' : 'Réel (ce mois)', <input type="number" inputMode="decimal" step="any" value={l.reel ?? ''} onChange={(e) => set({ reel: e.target.value })} style={petit} />)}
+        {mini('Montant', <input type="number" inputMode="decimal" step="any" value={l.prevu ?? ''} onChange={(e) => set({ prevu: e.target.value })} style={petit} />)}
+        {mini('Réel (ce mois)', <input type="number" inputMode="decimal" step="any" value={l.reel ?? ''} onChange={(e) => set({ reel: e.target.value })} style={petit} />)}
         {mini('Reste', (
           <div style={{ padding: '8px 2px', fontSize: '14px', fontWeight: '800', color: depasse ? ROUGE : '#2B2420' }}>
             {depasse ? `+${fmt(depasse)}` : fmt(reste)}
@@ -253,53 +257,33 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlob
         ))}
       </div>
 
-      {env && prevu > 0 && (
-        <div style={{ height: '6px', borderRadius: '999px', backgroundColor: '#F1E8D8', overflow: 'hidden', marginBottom: '9px' }}>
-          <div style={{ height: '100%', width: `${Math.min(pctUtilise, 100)}%`, backgroundColor: pctUtilise > 100 ? ROUGE : pctUtilise >= 80 ? ORANGE : ACCENT }} />
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => set({ type: l.type === 'Plaisir' ? 'Obligatoire' : 'Plaisir' })}
+          style={{ padding: '6px 11px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontSize: '11.5px', fontWeight: '800', color: l.type === 'Plaisir' ? BLEU : ACCENT, backgroundColor: l.type === 'Plaisir' ? BLEU_BG : ACCENT_BG }}
+        >
+          {l.type === 'Plaisir' ? 'Plaisir' : 'Obligatoire'}
+        </button>
+        <select
+          value={l.freq || 'mois'}
+          onChange={(e) => set({ freq: e.target.value })}
+          style={{ ...petit, width: 'auto', minWidth: '125px', fontSize: '12.5px', padding: '6px 8px' }}
+        >
+          {FREQS.map(([id, lib]) => <option key={id} value={id}>{lib}</option>)}
+        </select>
+        <select
+          value={l.payePar || ''}
+          onChange={(e) => set({ payePar: e.target.value })}
+          style={{ ...petit, width: 'auto', flex: 1, minWidth: '130px', fontSize: '12.5px', padding: '6px 8px' }}
+        >
+          <option value="">Payé par : non précisé</option>
+          <option value={uid}>Payé par : {nomMoi}</option>
+          <option value={partenaireUid}>Payé par : {nomElle}</option>
+        </select>
+      </div>
 
-      {env ? (
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <input type="number" inputMode="decimal" step="any" placeholder="Ajouter une dépense…" value={ajout} onChange={(e) => setAjout(e.target.value)} style={petit} />
-          <button
-            type="button"
-            disabled={!num(ajout)}
-            onClick={() => { set({ reel: String(Math.round((reel + num(ajout)) * 100) / 100) }); setAjout(''); }}
-            style={{ flexShrink: 0, padding: '0 14px', borderRadius: '11px', border: 'none', backgroundColor: num(ajout) ? ACCENT : '#E8DFCF', color: '#FFFFFF', fontWeight: '800', fontSize: '13px', cursor: 'pointer' }}
-          >
-            Ajouter
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => set({ type: l.type === 'Plaisir' ? 'Obligatoire' : 'Plaisir' })}
-            style={{ padding: '6px 11px', borderRadius: '999px', border: 'none', cursor: 'pointer', fontSize: '11.5px', fontWeight: '800', color: l.type === 'Plaisir' ? BLEU : ACCENT, backgroundColor: l.type === 'Plaisir' ? BLEU_BG : ACCENT_BG }}
-          >
-            {l.type === 'Plaisir' ? 'Plaisir' : 'Obligatoire'}
-          </button>
-          <select
-            value={l.freq || 'mois'}
-            onChange={(e) => set({ freq: e.target.value })}
-            style={{ ...petit, width: 'auto', minWidth: '125px', fontSize: '12.5px', padding: '6px 8px' }}
-          >
-            {FREQS.map(([id, lib]) => <option key={id} value={id}>{lib}</option>)}
-          </select>
-          <select
-            value={l.payePar || ''}
-            onChange={(e) => set({ payePar: e.target.value })}
-            style={{ ...petit, width: 'auto', flex: 1, minWidth: '130px', fontSize: '12.5px', padding: '6px 8px' }}
-          >
-            <option value="">Payé par : non précisé</option>
-            <option value={uid}>Payé par : {nomMoi}</option>
-            <option value={partenaireUid}>Payé par : {nomElle}</option>
-          </select>
-        </div>
-      )}
-
-      {!env && montant > 0 && (l.freq || 'mois') !== 'mois' && (
+      {montant > 0 && (l.freq || 'mois') !== 'mois' && (
         <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: ACCENT, fontWeight: '700' }}>
           {fmt(montant)} {infoFreq(l.freq)[1].toLowerCase()} = {fmt(prevu)} à mettre de côté par mois
         </p>
@@ -307,7 +291,7 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlob
 
       {prevu > 0 && (
         <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#8A7B68', fontWeight: '600', lineHeight: '1.45' }}>
-          {nomMoi} {fmt((prevu * pctMoi) / 100)} · {nomElle} {fmt((prevu * pctElle) / 100)}{!env ? ' par mois' : ''}
+          {nomMoi} {fmt((prevu * pctMoi) / 100)} · {nomElle} {fmt((prevu * pctElle) / 100)} par mois
           {' · '}
           <span style={{ color: forcee ? ACCENT : '#B5A793', fontWeight: forcee ? '800' : '600' }}>{libelleMode(modeEff)}</span>
         </p>
@@ -405,7 +389,7 @@ export function BudgetCommun({ utilisateur }) {
         const partA = mb[0] === uid ? pctMoiSolo : 100 - pctMoiSolo;
         await setDoc(
           doc(db, 'budget_commun', docId),
-          { ...propre({ membres: mb, mois, revenus: renommer(d.revenus), noms: renommer(d.noms), repartition: d.repartition, partA, lignes, valide: {} }), maj: serverTimestamp() },
+          { ...propre({ membres: mb, mois, revenus: renommer(d.revenus), noms: renommer(d.noms), compte: renommer(d.compte), repartition: d.repartition, partA, lignes, valide: {} }), maj: serverTimestamp() },
           { merge: true }
         );
       } catch (e) {
@@ -456,6 +440,7 @@ export function BudgetCommun({ utilisateur }) {
   const setScalar = (k, v) => modifier({ scalars: { [k]: v } });
   const setRevenu = (u, v) => modifier({ maps: { revenus: { [u]: v } } });
   const setNom = (u, v) => modifier({ maps: { noms: { [u]: v } } });
+  const setCompte = (u, v) => modifier({ maps: { compte: { [u]: v } } });
   const setLigne = (l) => modifier({ maps: { lignes: { [l.id]: l } } });
   const supprLigne = (id) => modifier({ maps: { lignes: { [id]: SUPPR } } });
   const basculerValidation = () => modifier({ maps: { valide: { [uid]: !data.valide[uid] } }, garderValide: true });
@@ -465,18 +450,16 @@ export function BudgetCommun({ utilisateur }) {
     setMois((m) => decaler(m, delta));
   };
 
-  const ajouterLigne = (cat) => {
+  const ajouterLigne = () => {
     const ordre = Math.max(-1, ...Object.values(data.lignes).map((x) => x.ordre ?? 0)) + 1;
-    setLigne({ id: nouvelId('l'), nom: '', cat, type: cat === 'fixe' ? 'Obligatoire' : 'Plaisir', freq: 'mois', prevu: '', reel: '', paye: false, payePar: '', partage: '', ordre });
+    setLigne({ id: nouvelId('l'), nom: '', cat: 'fixe', type: 'Obligatoire', freq: 'mois', prevu: '', reel: '', paye: false, payePar: '', partage: '', ordre });
   };
 
   const demarrerModele = () => {
     const lignes = {};
-    MODELE.forEach(([nom, cat, type, freq], i) => {
+    MODELE.forEach(([nom, type, freq, partage], i) => {
       const id = nouvelId('l');
-      // La redevance radio/TV est plus naturelle à 50/50 : on le propose d'office (modifiable via l'icône)
-      const partage = nom.startsWith('Redevance') ? 'egal' : '';
-      lignes[id] = { id, nom, cat, type, freq: freq || 'mois', prevu: '', reel: '', paye: false, payePar: '', partage, ordre: i };
+      lignes[id] = { id, nom, cat: 'fixe', type, freq, prevu: '', reel: '', paye: false, payePar: '', partage, ordre: i };
     });
     modifier({ maps: { lignes } });
   };
@@ -488,10 +471,12 @@ export function BudgetCommun({ utilisateur }) {
       setErreur('');
       const d = normaliser(snap.data());
       const lignes = {};
-      Object.values(d.lignes).forEach((l) => { lignes[l.id] = { ...l, reel: '', paye: false }; });
+      Object.values(d.lignes)
+        .filter((l) => l.cat !== 'env')
+        .forEach((l) => { lignes[l.id] = { ...l, reel: '', paye: false }; });
       modifier({
         scalars: { repartition: d.repartition, partA: d.partA },
-        maps: { revenus: d.revenus, noms: d.noms, lignes }
+        maps: { revenus: d.revenus, noms: d.noms, compte: d.compte, lignes }
       });
     } catch (e) {
       console.error('Erreur reprise du mois précédent :', e);
@@ -537,27 +522,34 @@ export function BudgetCommun({ utilisateur }) {
   const nomMoi = data.noms[uid] || 'Moi';
   const nomElle = data.noms[autreId] || 'Elle';
 
-  const lignes = Object.values(data.lignes).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-  const fixes = lignes.filter((l) => l.cat !== 'env');
-  const envs = lignes.filter((l) => l.cat === 'env');
+  // Dépenses fixes uniquement (les anciennes enveloppes sont ignorées)
+  const lignes = Object.values(data.lignes)
+    .filter((l) => l.cat !== 'env')
+    .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
-  const resteLigne = (l) => (l.cat === 'env' || !l.paye ? Math.max(prevuMois(l) - num(l.reel), 0) : 0);
+  const resteLigne = (l) => (l.paye ? 0 : Math.max(prevuMois(l) - num(l.reel), 0));
   const totPrevu = lignes.reduce((s, l) => s + prevuMois(l), 0);
   const totReel = lignes.reduce((s, l) => s + num(l.reel), 0);
   const totReste = lignes.reduce((s, l) => s + resteLigne(l), 0);
-  const totPrevuFixes = fixes.reduce((s, l) => s + prevuMois(l), 0);
   const avancement = totPrevu > 0 ? Math.min((totReel / totPrevu) * 100, 100) : 0;
 
   // Totaux par personne (en tenant compte du mode de partage de chaque ligne)
   const sommeMoi = (fn) => lignes.reduce((s, l) => s + (fn(l) * pctMoiLigne(l)) / 100, 0);
   const prevuMoi = sommeMoi(prevuMois);
   const prevuElle = totPrevu - prevuMoi;
-  const reelMoi = sommeMoi((l) => num(l.reel));
-  const reelElle = totReel - reelMoi;
   const resteMoi = sommeMoi(resteLigne);
   const resteElle = totReste - resteMoi;
   const partEffMoi = totPrevu > 0 ? (prevuMoi / totPrevu) * 100 : pctMoi;
   const partEffElle = 100 - partEffMoi;
+
+  // Compte commun (variable) : virement mensuel de chacun
+  const compteMoi = num(data.compte[uid]);
+  const compteElle = num(data.compte[autreId]);
+  const totCompte = compteMoi + compteElle;
+
+  // Total à prévoir chaque mois = dépenses fixes + virement compte commun
+  const totalMoi = prevuMoi + compteMoi;
+  const totalElle = prevuElle + compteElle;
 
   // Équilibre : qui a avancé de l'argent pour l'autre ? (positif = elle me doit)
   let equilibre = 0;
@@ -575,7 +567,7 @@ export function BudgetCommun({ utilisateur }) {
   let aDesVirements = false;
   lignes.forEach((l) => {
     const p = prevuMois(l);
-    if (!p || !l.payePar || l.cat === 'env') return;
+    if (!p || !l.payePar) return;
     const pm = pctMoiLigne(l);
     if (l.payePar === uid) { elleMeDoit += (p * (100 - pm)) / 100; aDesVirements = true; }
     else if (l.payePar === autreId) { jeLuiDois += (p * pm) / 100; aDesVirements = true; }
@@ -583,7 +575,7 @@ export function BudgetCommun({ utilisateur }) {
   const virementNet = elleMeDoit - jeLuiDois; // > 0 : elle me verse ; < 0 : je lui verse
 
   const partRevenu = (u) => {
-    const part = u === uid ? prevuMoi : prevuElle;
+    const part = u === uid ? totalMoi : totalElle;
     return rev(u) > 0 ? pc((part / rev(u)) * 100) : '—';
   };
 
@@ -605,6 +597,16 @@ export function BudgetCommun({ utilisateur }) {
         <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#B5A793', flexShrink: 0 }}>CHF</span>
       </div>
       <p style={{ margin: '12px 0 0 0', textAlign: 'center', fontSize: '30px', fontWeight: '800', color: couleur, fontFamily: SERIF }}>{pc(pct[u])}</p>
+    </div>
+  );
+
+  const colonneCompte = (u, nom, couleur) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <label style={{ ...labelStyle, color: couleur, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom} verse</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <input type="number" inputMode="decimal" step="any" placeholder="0" value={data.compte[u] ?? ''} onChange={(e) => setCompte(u, e.target.value)} style={inputStyle} />
+        <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#B5A793', flexShrink: 0 }}>CHF</span>
+      </div>
     </div>
   );
 
@@ -683,19 +685,35 @@ export function BudgetCommun({ utilisateur }) {
         )}
 
         <p style={{ margin: '12px 0 0 0', fontSize: '11.5px', color: '#B5A793', lineHeight: '1.45', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-          Sur chaque dépense, l’icône <IconScale size={13} /> / <IconEqual size={13} /> permet de forcer 50/50 ou prorata. Sans clic, la ligne suit le choix ci-dessus.
+          Ce choix s’applique aux dépenses fixes. Sur chaque ligne, l’icône <IconScale size={13} /> / <IconEqual size={13} /> permet de forcer 50/50 ou prorata.
         </p>
       </div>
 
-      {/* Reste à payer */}
+      {/* Compte commun (variable) */}
+      <div style={carte}>
+        <p style={titreCarte}>COMPTE COMMUN — LE VARIABLE</p>
+        <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#8A7B68', lineHeight: '1.5' }}>
+          Bouffe, maison, sorties à deux… Chacun vire un montant chaque mois, tout se dépense à 50/50 depuis ce compte. Le détail se voit dans Revolut.
+        </p>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+          {colonneCompte(uid, nomMoi, ACCENT)}
+          {colonneCompte(autreId, nomElle, BLEU)}
+        </div>
+        <div style={{ backgroundColor: '#F7F1E8', borderRadius: '12px', padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#8A7B68' }}>Total sur le compte chaque mois</span>
+          <span style={{ fontSize: '16px', fontWeight: '800', color: '#2B2420', fontFamily: SERIF }}>{fmt(totCompte)}</span>
+        </div>
+      </div>
+
+      {/* Récapitulatif */}
       <div style={{ ...carte, textAlign: 'center' }}>
-        <p style={{ ...titreCarte, marginBottom: '4px' }}>RESTE À PAYER CE MOIS</p>
+        <p style={{ ...titreCarte, marginBottom: '4px' }}>RESTE À PAYER CE MOIS (DÉPENSES FIXES)</p>
         <p style={{ margin: '0 0 10px 0', fontSize: '32px', fontWeight: '800', color: '#2B2420', fontFamily: SERIF }}>{fmt(totReste)}</p>
         <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#F1E8D8', overflow: 'hidden', marginBottom: '8px' }}>
           <div style={{ height: '100%', width: `${avancement}%`, backgroundColor: totReel > totPrevu && totPrevu > 0 ? ROUGE : VERT, transition: 'width .3s' }} />
         </div>
         <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#8A7B68', fontWeight: '600' }}>
-          prévu {fmt(totPrevu)} · dépensé {fmt(totReel)}
+          prévu {fmt(totPrevu)} · payé {fmt(totReel)}
         </p>
 
         <div style={{ backgroundColor: '#F7F1E8', borderRadius: '14px', padding: '12px 14px', textAlign: 'left' }}>
@@ -704,11 +722,12 @@ export function BudgetCommun({ utilisateur }) {
             <span style={{ textAlign: 'right', color: ACCENT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomMoi}</span>
             <span style={{ textAlign: 'right', color: BLEU, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomElle}</span>
           </div>
-          {ligneTab('Part', pc(partEffMoi), pc(partEffElle))}
-          {ligneTab('Prévu / mois', fmt(prevuMoi), fmt(prevuElle))}
-          {ligneTab('Déjà dépensé', fmt(reelMoi), fmt(reelElle))}
-          {ligneTab('Reste à payer', fmt(resteMoi), fmt(resteElle), true)}
+          {ligneTab('Part des fixes', pc(partEffMoi), pc(partEffElle))}
+          {ligneTab('Dépenses fixes / mois', fmt(prevuMoi), fmt(prevuElle))}
+          {ligneTab('Compte commun / mois', fmt(compteMoi), fmt(compteElle))}
+          {ligneTab('Total à prévoir / mois', fmt(totalMoi), fmt(totalElle), true)}
           {ligneTab('Part du revenu net', partRevenu(uid), partRevenu(autreId))}
+          {ligneTab('Fixes restant à payer', fmt(resteMoi), fmt(resteElle))}
         </div>
 
         {aDesPayeurs && (
@@ -744,13 +763,13 @@ export function BudgetCommun({ utilisateur }) {
             </div>
           </div>
           <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#B5A793', lineHeight: '1.45' }}>
-            Calculé sur le prévu ramené au mois, pour les dépenses fixes où « Payé par » est renseigné.
+            Calculé sur le prévu ramené au mois, pour les dépenses fixes où « Payé par » est renseigné. Le compte commun n’est pas compté ici.
           </p>
         </div>
       )}
 
       {/* Validation */}
-      {partenaireUid && lignes.length > 0 && (
+      {partenaireUid && (lignes.length > 0 || totCompte > 0) && (
         <div style={carte}>
           <p style={titreCarte}>VALIDATION DU MOIS</p>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
@@ -775,7 +794,7 @@ export function BudgetCommun({ utilisateur }) {
       {/* Démarrage */}
       {lignes.length === 0 && (
         <div style={{ ...carte, textAlign: 'center' }}>
-          <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#8A7B68', lineHeight: '1.5' }}>Ce mois est vide. Par où commencer ?</p>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#8A7B68', lineHeight: '1.5' }}>Aucune dépense fixe ce mois. Par où commencer ?</p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button type="button" onClick={demarrerModele} style={{ flex: 1, minWidth: '150px', padding: '11px', borderRadius: '12px', border: 'none', backgroundColor: ACCENT, color: '#FFFFFF', fontWeight: '800', fontSize: '13.5px', cursor: 'pointer' }}>
               Partir d’un modèle
@@ -787,35 +806,13 @@ export function BudgetCommun({ utilisateur }) {
         </div>
       )}
 
-      {/* Barres des enveloppes */}
-      {envs.length > 0 && (
-        <div style={carte}>
-          <p style={titreCarte}>ENVELOPPES — % DÉPENSÉ</p>
-          <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px', justifyContent: envs.length <= 5 ? 'space-around' : 'flex-start' }}>
-            {envs.map((e) => {
-              const p = num(e.prevu) > 0 ? (num(e.reel) / num(e.prevu)) * 100 : 0;
-              const couleur = p > 100 ? ROUGE : p >= 80 ? ORANGE : ACCENT;
-              return (
-                <div key={e.id} style={{ flex: '0 0 auto', width: '58px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '12px', fontWeight: '800', color: couleur, marginBottom: '4px' }}>{Math.round(p)}%</div>
-                  <div style={{ height: '90px', borderRadius: '10px', backgroundColor: '#F1E8D8', display: 'flex', alignItems: 'flex-end', overflow: 'hidden' }}>
-                    <div style={{ width: '100%', height: `${Math.min(p, 100)}%`, backgroundColor: couleur, transition: 'height .3s' }} />
-                  </div>
-                  <div style={{ fontSize: '10.5px', color: '#8A7B68', fontWeight: '700', marginTop: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.nom || '—'}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Dépenses fixes */}
       <div style={{ backgroundColor: ACCENT_BG, borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: '17px', fontWeight: '800', color: ACCENT, fontFamily: SERIF }}>Dépenses fixes</span>
-        <span style={{ fontSize: '14px', fontWeight: '800', color: ACCENT }}>{fmt(totPrevuFixes)} / mois</span>
+        <span style={{ fontSize: '14px', fontWeight: '800', color: ACCENT }}>{fmt(totPrevu)} / mois</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
-        {fixes.map((l) => (
+        {lignes.map((l) => (
           <LigneBudget
             key={l.id} l={l} onChange={setLigne}
             onDelete={() => { if (window.confirm('Supprimer cette ligne ?')) supprLigne(l.id); }}
@@ -825,32 +822,10 @@ export function BudgetCommun({ utilisateur }) {
         ))}
       </div>
       <button
-        type="button" onClick={() => ajouterLigne('fixe')}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `1.5px dashed ${ACCENT}`, background: 'transparent', borderRadius: '12px', padding: '11px', color: ACCENT, fontSize: '13px', fontWeight: '800', cursor: 'pointer', marginBottom: '22px' }}
+        type="button" onClick={ajouterLigne}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `1.5px dashed ${ACCENT}`, background: 'transparent', borderRadius: '12px', padding: '11px', color: ACCENT, fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}
       >
         <IconPlus size={15} /> Ajouter une dépense fixe
-      </button>
-
-      {/* Enveloppes */}
-      <div style={{ backgroundColor: BLEU_BG, borderRadius: '14px', padding: '12px 14px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '17px', fontWeight: '800', color: BLEU, fontFamily: SERIF }}>Enveloppes</span>
-        <span style={{ fontSize: '12px', fontWeight: '700', color: BLEU }}>courses, loisirs…</span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
-        {envs.map((l) => (
-          <LigneBudget
-            key={l.id} l={l} onChange={setLigne}
-            onDelete={() => { if (window.confirm('Supprimer cette enveloppe ?')) supprLigne(l.id); }}
-            {...propsPartage(l)}
-            nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
-          />
-        ))}
-      </div>
-      <button
-        type="button" onClick={() => ajouterLigne('env')}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: '1.5px dashed #D9CDB8', background: 'transparent', borderRadius: '12px', padding: '11px', color: '#8A7B68', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
-      >
-        <IconPlus size={15} /> Ajouter une enveloppe
       </button>
     </div>
   );
