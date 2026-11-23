@@ -118,7 +118,7 @@ function compterReponses(section, donnees) {
 // CHAMPS DE SAISIE
 // =====================================================================
 function Chips({ options, valeur, multiple, onChange, nomme }) {
-  const choisi = (o) => (multiple ? (valeur || []).includes(o) : valeur === o);
+  const choisi = (o) => (multiple ? Array.isArray(valeur) && valeur.includes(o) : valeur === o);
   const clic = (o) => {
     if (multiple) {
       const actuel = Array.isArray(valeur) ? valeur : [];
