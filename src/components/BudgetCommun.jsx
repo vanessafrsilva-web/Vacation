@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '../firebase';
 import { doc, getDoc, onSnapshot, setDoc, deleteField, serverTimestamp } from 'firebase/firestore';
-import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconCheck } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconCheck, IconScale, IconEqual } from '@tabler/icons-react';
 
 // =====================================================================
 // BUDGET COMMUN — un budget par mois, partagé entre vous deux.
@@ -11,10 +11,14 @@ import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconCheck } fro
 //   mois         : 'AAAA-MM'
 //   noms         : { uid: prénom }
 //   revenus      : { uid: revenu net mensuel }
-//   repartition  : 'prorata' | 'egal' | 'manuel'
+//   repartition  : 'prorata' | 'egal' | 'manuel'   (répartition globale)
 //   partA        : % payé par uidA quand repartition === 'manuel'
 //   valide       : { uid: true|false } validation du mois par chacune
-//   lignes       : { idLigne: { id, nom, cat: 'fixe'|'env', type, freq (jour|semaine|mois|trimestre|semestre|an), prevu, reel, paye, payePar, ordre } }
+//   lignes       : { idLigne: { id, nom, cat: 'fixe'|'env', type, freq (jour|semaine|mois|trimestre|semestre|an), prevu, reel, paye, payePar, partage ('' | 'egal' | 'prorata'), ordre } }
+//
+// partage sur une ligne : '' = suit la répartition globale,
+//                         'egal' = 50/50 pour cette ligne,
+//                         'prorata' = au prorata des revenus pour cette ligne.
 //
 // La liaison des comptes se fait dans l'accord de cohabitation
 // (on réutilise accord_prive/{uid}.partenaireUid).
@@ -65,6 +69,10 @@ const FREQS = [
 const infoFreq = (f) => FREQS.find((x) => x[0] === f) || FREQS[2];
 // Montant prévu ramené à un mois (ce que vous mettez de côté chaque mois)
 const prevuMois = (l) => (l.cat === 'env' ? num(l.prevu) : num(l.prevu) * infoFreq(l.freq)[2]);
+
+// --- Mode de partage d'une ligne -----------------------------------------
+const CYCLE_PARTAGE = ['', 'egal', 'prorata'];
+const libelleMode = (m) => (m === 'egal' ? '50/50' : m === 'prorata' ? 'au prorata' : 'répartition choisie');
 
 // --- Mois -------------------------------------------------------------
 const moisCourant = () => {
@@ -147,7 +155,7 @@ function fusionner(a, b) {
 // =====================================================================
 // UNE LIGNE DE DÉPENSE
 // =====================================================================
-function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, uid, partenaireUid }) {
+function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, modeEff, modeGlobal, nomMoi, nomElle, uid, partenaireUid }) {
   const [ajout, setAjout] = useState('');
   const env = l.cat === 'env';
   const montant = num(l.prevu); // à chaque paiement
@@ -163,6 +171,23 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
     set({ paye, reel: paye && !l.reel && prevu > 0 ? String(Math.round(prevu * 100) / 100) : l.reel });
   };
 
+  // Mode de partage : '' (comme le global) → 50/50 → prorata → ''
+  // On saute l'étape qui serait identique au mode global (inutile).
+  const forcee = l.partage === 'egal' || l.partage === 'prorata';
+  const partageSuivant = () => {
+    let i = CYCLE_PARTAGE.indexOf(l.partage || '');
+    for (let k = 0; k < CYCLE_PARTAGE.length; k++) {
+      i = (i + 1) % CYCLE_PARTAGE.length;
+      const c = CYCLE_PARTAGE[i];
+      if (c === '' || c !== modeGlobal) return c;
+    }
+    return '';
+  };
+  const IconePartage = modeEff === 'egal' ? IconEqual : IconScale;
+  const titrePartage = forcee
+    ? `Cette ligne : ${libelleMode(modeEff)} (clique pour changer)`
+    : `Suit la répartition choisie en haut (clique pour forcer 50/50 ou prorata)`;
+
   const petit = { ...inputStyle, padding: '8px 10px', fontSize: '14px' };
   const mini = (label, contenu) => (
     <div style={{ flex: 1, minWidth: 0 }}>
@@ -170,6 +195,11 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
       {contenu}
     </div>
   );
+
+  // Virement mensuel : qui verse combien à qui (si quelqu'un a avancé la dépense)
+  const payeurEstMoi = !env && l.payePar && l.payePar === uid;
+  const payeurEstElle = !env && l.payePar && l.payePar === partenaireUid;
+  const virementMontant = payeurEstMoi ? (prevu * pctElle) / 100 : payeurEstElle ? (prevu * pctMoi) / 100 : 0;
 
   return (
     <div style={{ backgroundColor: !env && l.paye ? '#F6FBF8' : '#FFFFFF', border: `1px solid ${!env && l.paye ? '#CFE8DB' : '#E8DFCF'}`, borderRadius: '14px', padding: '11px 12px' }}>
@@ -195,6 +225,21 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
           onChange={(e) => set({ nom: e.target.value })}
           style={{ ...petit, fontWeight: '800', fontSize: '14.5px' }}
         />
+        <button
+          type="button"
+          onClick={() => set({ partage: partageSuivant() })}
+          title={titrePartage}
+          aria-label={titrePartage}
+          style={{
+            flexShrink: 0, width: '32px', height: '32px', padding: 0, borderRadius: '10px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: forcee ? `1.5px solid ${ACCENT}` : '1px solid #E8DFCF',
+            backgroundColor: forcee ? ACCENT_BG : '#FFFFFF',
+            color: forcee ? ACCENT : '#C9BDA9'
+          }}
+        >
+          <IconePartage size={17} />
+        </button>
         <button type="button" onClick={onDelete} style={{ ...petitBouton, color: ROUGE }}><IconTrash size={16} /></button>
       </div>
 
@@ -261,8 +306,18 @@ function LigneBudget({ l, onChange, onDelete, pctMoi, pctElle, nomMoi, nomElle, 
       )}
 
       {prevu > 0 && (
-        <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#8A7B68', fontWeight: '600' }}>
+        <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#8A7B68', fontWeight: '600', lineHeight: '1.45' }}>
           {nomMoi} {fmt((prevu * pctMoi) / 100)} · {nomElle} {fmt((prevu * pctElle) / 100)}{!env ? ' par mois' : ''}
+          {' · '}
+          <span style={{ color: forcee ? ACCENT : '#B5A793', fontWeight: forcee ? '800' : '600' }}>{libelleMode(modeEff)}</span>
+        </p>
+      )}
+
+      {virementMontant > 0.004 && (
+        <p style={{ margin: '8px 0 0 0', padding: '8px 10px', borderRadius: '10px', backgroundColor: ACCENT_BG, fontSize: '12px', color: ACCENT, fontWeight: '800', lineHeight: '1.4' }}>
+          {payeurEstMoi
+            ? `${nomElle} te verse ${fmt(virementMontant)} par mois`
+            : `Tu verses ${fmt(virementMontant)} par mois à ${nomElle}`}
         </p>
       )}
     </div>
@@ -412,14 +467,16 @@ export function BudgetCommun({ utilisateur }) {
 
   const ajouterLigne = (cat) => {
     const ordre = Math.max(-1, ...Object.values(data.lignes).map((x) => x.ordre ?? 0)) + 1;
-    setLigne({ id: nouvelId('l'), nom: '', cat, type: cat === 'fixe' ? 'Obligatoire' : 'Plaisir', freq: 'mois', prevu: '', reel: '', paye: false, payePar: '', ordre });
+    setLigne({ id: nouvelId('l'), nom: '', cat, type: cat === 'fixe' ? 'Obligatoire' : 'Plaisir', freq: 'mois', prevu: '', reel: '', paye: false, payePar: '', partage: '', ordre });
   };
 
   const demarrerModele = () => {
     const lignes = {};
     MODELE.forEach(([nom, cat, type, freq], i) => {
       const id = nouvelId('l');
-      lignes[id] = { id, nom, cat, type, freq: freq || 'mois', prevu: '', reel: '', paye: false, payePar: '', ordre: i };
+      // La redevance radio/TV est plus naturelle à 50/50 : on le propose d'office (modifiable via l'icône)
+      const partage = nom.startsWith('Redevance') ? 'egal' : '';
+      lignes[id] = { id, nom, cat, type, freq: freq || 'mois', prevu: '', reel: '', paye: false, payePar: '', partage, ordre: i };
     });
     modifier({ maps: { lignes } });
   };
@@ -466,6 +523,17 @@ export function BudgetCommun({ utilisateur }) {
   const pctMoi = pct[uid];
   const pctElle = pct[autreId];
 
+  // Part « au prorata des revenus » (50 / 50 tant que les revenus ne sont pas saisis)
+  const prorataMoi = totalRev > 0 ? (rev(uid) / totalRev) * 100 : 50;
+
+  // Mode et part de MA part pour une ligne donnée (la ligne peut déroger au global)
+  const modeLigne = (l) => (l.partage === 'egal' ? 'egal' : l.partage === 'prorata' ? 'prorata' : data.repartition);
+  const pctMoiLigne = (l) => (l.partage === 'egal' ? 50 : l.partage === 'prorata' ? prorataMoi : pctMoi);
+  const propsPartage = (l) => {
+    const pm = pctMoiLigne(l);
+    return { pctMoi: pm, pctElle: 100 - pm, modeEff: modeLigne(l), modeGlobal: data.repartition };
+  };
+
   const nomMoi = data.noms[uid] || 'Moi';
   const nomElle = data.noms[autreId] || 'Elle';
 
@@ -480,6 +548,17 @@ export function BudgetCommun({ utilisateur }) {
   const totPrevuFixes = fixes.reduce((s, l) => s + prevuMois(l), 0);
   const avancement = totPrevu > 0 ? Math.min((totReel / totPrevu) * 100, 100) : 0;
 
+  // Totaux par personne (en tenant compte du mode de partage de chaque ligne)
+  const sommeMoi = (fn) => lignes.reduce((s, l) => s + (fn(l) * pctMoiLigne(l)) / 100, 0);
+  const prevuMoi = sommeMoi(prevuMois);
+  const prevuElle = totPrevu - prevuMoi;
+  const reelMoi = sommeMoi((l) => num(l.reel));
+  const reelElle = totReel - reelMoi;
+  const resteMoi = sommeMoi(resteLigne);
+  const resteElle = totReste - resteMoi;
+  const partEffMoi = totPrevu > 0 ? (prevuMoi / totPrevu) * 100 : pctMoi;
+  const partEffElle = 100 - partEffMoi;
+
   // Équilibre : qui a avancé de l'argent pour l'autre ? (positif = elle me doit)
   let equilibre = 0;
   let aDesPayeurs = false;
@@ -487,10 +566,26 @@ export function BudgetCommun({ utilisateur }) {
     const r = num(l.reel);
     if (!r || !l.payePar) return;
     aDesPayeurs = true;
-    equilibre += (l.payePar === uid ? r : 0) - (r * pctMoi) / 100;
+    equilibre += (l.payePar === uid ? r : 0) - (r * pctMoiLigne(l)) / 100;
   });
 
-  const partRevenu = (u) => (rev(u) > 0 ? pc(((totPrevu * pct[u]) / 100 / rev(u)) * 100) : '—');
+  // Virement mensuel entre vous (sur le prévu ramené au mois, lignes avec « Payé par »)
+  let elleMeDoit = 0; // ce que l'autre doit me verser (j'ai avancé)
+  let jeLuiDois = 0; // ce que je dois lui verser (elle a avancé)
+  let aDesVirements = false;
+  lignes.forEach((l) => {
+    const p = prevuMois(l);
+    if (!p || !l.payePar || l.cat === 'env') return;
+    const pm = pctMoiLigne(l);
+    if (l.payePar === uid) { elleMeDoit += (p * (100 - pm)) / 100; aDesVirements = true; }
+    else if (l.payePar === autreId) { jeLuiDois += (p * pm) / 100; aDesVirements = true; }
+  });
+  const virementNet = elleMeDoit - jeLuiDois; // > 0 : elle me verse ; < 0 : je lui verse
+
+  const partRevenu = (u) => {
+    const part = u === uid ? prevuMoi : prevuElle;
+    return rev(u) > 0 ? pc((part / rev(u)) * 100) : '—';
+  };
 
   const ligneTab = (label, a, b, fort) => (
     <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr', gap: '6px', padding: '7px 0', borderTop: '1px solid #F1E8D8', fontWeight: fort ? '800' : '600', fontSize: '12.5px' }}>
@@ -586,6 +681,10 @@ export function BudgetCommun({ utilisateur }) {
             Entrez vos deux revenus pour calculer le prorata. En attendant, c’est 50 / 50.
           </p>
         )}
+
+        <p style={{ margin: '12px 0 0 0', fontSize: '11.5px', color: '#B5A793', lineHeight: '1.45', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+          Sur chaque dépense, l’icône <IconScale size={13} /> / <IconEqual size={13} /> permet de forcer 50/50 ou prorata. Sans clic, la ligne suit le choix ci-dessus.
+        </p>
       </div>
 
       {/* Reste à payer */}
@@ -605,10 +704,10 @@ export function BudgetCommun({ utilisateur }) {
             <span style={{ textAlign: 'right', color: ACCENT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomMoi}</span>
             <span style={{ textAlign: 'right', color: BLEU, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomElle}</span>
           </div>
-          {ligneTab('Part', pc(pctMoi), pc(pctElle))}
-          {ligneTab('Prévu', fmt((totPrevu * pctMoi) / 100), fmt((totPrevu * pctElle) / 100))}
-          {ligneTab('Déjà dépensé', fmt((totReel * pctMoi) / 100), fmt((totReel * pctElle) / 100))}
-          {ligneTab('Reste à payer', fmt((totReste * pctMoi) / 100), fmt((totReste * pctElle) / 100), true)}
+          {ligneTab('Part', pc(partEffMoi), pc(partEffElle))}
+          {ligneTab('Prévu / mois', fmt(prevuMoi), fmt(prevuElle))}
+          {ligneTab('Déjà dépensé', fmt(reelMoi), fmt(reelElle))}
+          {ligneTab('Reste à payer', fmt(resteMoi), fmt(resteElle), true)}
           {ligneTab('Part du revenu net', partRevenu(uid), partRevenu(autreId))}
         </div>
 
@@ -622,6 +721,33 @@ export function BudgetCommun({ utilisateur }) {
           </p>
         )}
       </div>
+
+      {/* Virement mensuel entre vous */}
+      {aDesVirements && (
+        <div style={{ ...carte, textAlign: 'center' }}>
+          <p style={{ ...titreCarte, marginBottom: '6px' }}>À SE VERSER CHAQUE MOIS</p>
+          <p style={{ margin: '0 0 10px 0', fontSize: '15px', fontWeight: '800', color: Math.abs(virementNet) < 0.005 ? VERT : ACCENT, lineHeight: '1.4' }}>
+            {Math.abs(virementNet) < 0.005
+              ? 'Rien à se verser : c’est équilibré ✓'
+              : virementNet > 0
+                ? `${nomElle} verse ${fmt(virementNet)} à ${nomMoi}`
+                : `${nomMoi} verse ${fmt(-virementNet)} à ${nomElle}`}
+          </p>
+          <div style={{ backgroundColor: '#F7F1E8', borderRadius: '14px', padding: '10px 14px', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12.5px', fontWeight: '600', color: '#2B2420', padding: '3px 0' }}>
+              <span>{nomElle} → {nomMoi}</span>
+              <span style={{ fontWeight: '800' }}>{fmt(elleMeDoit)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '12.5px', fontWeight: '600', color: '#2B2420', padding: '3px 0' }}>
+              <span>{nomMoi} → {nomElle}</span>
+              <span style={{ fontWeight: '800' }}>{fmt(jeLuiDois)}</span>
+            </div>
+          </div>
+          <p style={{ margin: '8px 0 0 0', fontSize: '11.5px', color: '#B5A793', lineHeight: '1.45' }}>
+            Calculé sur le prévu ramené au mois, pour les dépenses fixes où « Payé par » est renseigné.
+          </p>
+        </div>
+      )}
 
       {/* Validation */}
       {partenaireUid && lignes.length > 0 && (
@@ -693,7 +819,8 @@ export function BudgetCommun({ utilisateur }) {
           <LigneBudget
             key={l.id} l={l} onChange={setLigne}
             onDelete={() => { if (window.confirm('Supprimer cette ligne ?')) supprLigne(l.id); }}
-            pctMoi={pctMoi} pctElle={pctElle} nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
+            {...propsPartage(l)}
+            nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
           />
         ))}
       </div>
@@ -714,7 +841,8 @@ export function BudgetCommun({ utilisateur }) {
           <LigneBudget
             key={l.id} l={l} onChange={setLigne}
             onDelete={() => { if (window.confirm('Supprimer cette enveloppe ?')) supprLigne(l.id); }}
-            pctMoi={pctMoi} pctElle={pctElle} nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
+            {...propsPartage(l)}
+            nomMoi={nomMoi} nomElle={nomElle} uid={uid} partenaireUid={autreId}
           />
         ))}
       </div>
